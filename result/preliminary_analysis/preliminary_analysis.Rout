@@ -1,5 +1,5 @@
 > #' preliminary analysis
-> #' 
+> #' fix temperature
 > 
 > 
 > rm(list=ls()); gc()
@@ -21,6 +21,84 @@ Loading required package: weathermetrics
 > #'  temperature Kelvin to Celcius: -273.15 
 > #'  heat index: `weathermetrics::heat.index`
 > #'  set min. humidity above 100 (slightly) to 100
+> summary(dt[,.(max_temp, min_humid)])
+    max_temp        min_humid      
+ Min.   : 16.25   Min.   :  0.307  
+ 1st Qu.:285.63   1st Qu.: 32.987  
+ Median :294.66   Median : 42.396  
+ Mean   :292.98   Mean   : 42.106  
+ 3rd Qu.:301.38   3rd Qu.: 51.412  
+ Max.   :321.04   Max.   :100.000  
+> hist(dt[,max_temp])
+> 
+> ### extreme temp ----
+> probZIP <- c(33070, 33036, 4631, 33033, 4652, 32625)
+> dt[zip %in% probZIP,.(date, zip, max_temp)][, max_temp_C:=max_temp-273.15][]
+           date   zip max_temp max_temp_C
+  1: 2009-06-03 33033 234.1287  -39.02128
+  2: 2009-06-10 33033 236.2043  -36.94568
+  3: 2009-06-17 33033 237.0100  -36.14001
+  4: 2009-06-24 33033 237.7694  -35.38056
+  5: 2010-05-06 33033 304.9301   31.78010
+ ---                                     
+660: 2010-04-28 33033 300.4415   27.29155
+661: 2002-04-02 33033 234.4610  -38.68896
+662: 2002-04-09 33033 233.4084  -39.74155
+663: 2002-04-16 33033 234.1561  -38.99394
+664: 2002-04-23 33033 236.3745  -36.77548
+> hist(dt[!(zip %in% probZIP), max_temp])
+> summary(dt[!(zip %in% probZIP), max_temp])
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  245.2   285.6   294.7   293.0   301.4   321.0 
+> dt[!(zip %in% probZIP) & (max_temp<250),.(date, zip, max_temp)] # temperature fixed
+          date   zip max_temp
+ 1: 2009-01-14 56671 248.3651
+ 2: 2009-01-14 58370 249.9907
+ 3: 2004-01-14  5661 249.9695
+ 4: 2006-02-17 58316 249.2804
+ 5: 2009-01-15 58703 249.8539
+ 6: 2004-01-14  5843 249.5379
+ 7: 2004-01-27 58784 249.9619
+ 8: 2004-01-29 58078 248.7397
+ 9: 2004-01-28 58776 245.2233
+10: 2004-01-29 58282 246.6752
+11: 2008-12-14 59912 249.5027
+12: 2007-01-12 58249 248.7346
+13: 2009-01-14 58212 248.8941
+14: 1999-01-08 58329 249.4462
+15: 2010-01-01 58237 248.6677
+> 
+> ## find how many cases were impacted
+> length(unique(dt[(depressionDT), bene_id])) # match data processing
+[1] 174805
+> length(unique(dt[(depressionDT) & !(zip %in% probZIP), bene_id]))
+[1] 174711
+> 
+> length(unique(dt[(anxietyDT), bene_id])) # match data processing
+[1] 78076
+> length(unique(dt[(anxietyDT) & !(zip %in% probZIP), bene_id]))
+[1] 78053
+> 
+> length(unique(dt[(emotion_disturbDT), bene_id])) # match data processing
+[1] 122117
+> length(unique(dt[(emotion_disturbDT) & !(zip %in% probZIP), bene_id]))
+[1] 122101
+> 
+> length(unique(dt[(adole_reactionDT), bene_id])) # match data processing
+[1] 129338
+> length(unique(dt[(adole_reactionDT) & !(zip %in% probZIP), bene_id]))
+[1] 129309
+> 
+> length(unique(dt[(disturb_conductDT), bene_id])) # match data processing
+[1] 114593
+> length(unique(dt[(disturb_conductDT) & !(zip %in% probZIP), bene_id]))
+[1] 114556
+> 
+> ### save updated data ----
+> dt <- dt[!(zip %in% probZIP), ]
+> write_fst(dt, path = file.path(wkdir, "data", "data_to_analyze_fixedtemp.fst"))
+> 
+> ### create new var. ----
 > dt[, max_temp_C:=max_temp-273.15]
 > dt[, min_humid_fixed := ifelse(min_humid>100, 100, min_humid)]
 > dt[, heat_index := heat.index(t = max_temp_C, rh = min_humid_fixed, 
@@ -31,14 +109,15 @@ Loading required package: weathermetrics
 Empty data.table (0 rows and 18 cols): bene_id,date,zip,max_temp,min_humid,depression...
 > 
 > summary(dt[,.(max_temp_C, min_humid_fixed, heat_index)])
-   max_temp_C      min_humid_fixed     heat_index     
- Min.   :-256.90   Min.   :  0.307   Min.   :-257.00  
- 1st Qu.:  12.48   1st Qu.: 32.987   1st Qu.:  11.00  
- Median :  21.51   Median : 42.396   Median :  21.00  
- Mean   :  19.83   Mean   : 42.106   Mean   :  19.38  
- 3rd Qu.:  28.23   3rd Qu.: 51.412   3rd Qu.:  28.00  
- Max.   :  47.89   Max.   :100.000   Max.   :  55.00  
+   max_temp_C     min_humid_fixed     heat_index   
+ Min.   :-27.93   Min.   :  0.307   Min.   :-28.0  
+ 1st Qu.: 12.49   1st Qu.: 32.986   1st Qu.: 11.0  
+ Median : 21.51   Median : 42.394   Median : 21.0  
+ Mean   : 19.86   Mean   : 42.106   Mean   : 19.4  
+ 3rd Qu.: 28.23   3rd Qu.: 51.413   3rd Qu.: 28.0  
+ Max.   : 47.89   Max.   :100.000   Max.   : 55.0  
 > 
+> ## model ----
 > varList <- c("depression", "anxiety", "emotion_disturb", "adole_reaction", "disturb_conduct")
 > for (var in varList) {
 +   cat(toupper(var),"\n")
@@ -47,16 +126,21 @@ Empty data.table (0 rows and 18 cols): bene_id,date,zip,max_temp,min_humid,depre
 +            term = 1, se = T, col.se = "black", col.term = "black")
 +   mod <- clogit(get(var) ~ max_temp + strata(bene_id), data=dt[get(paste0(var,"DT")),])
 +   print(summary(mod))
++   cat("print OR for 5 unit increase in temperature and its 95CI \n")
++   est <- coef(mod)[['max_temp']]; se <- sqrt(vcov(mod)[1,1])
++   print(exp(est*5))
++   print(exp((est-qnorm(.975)*se)*5))
++   print(exp((est+qnorm(.975)*se)*5))
 + }
 DEPRESSION 
 Call:
-coxph(formula = Surv(rep(1, 699220L), get(var)) ~ max_temp + 
+coxph(formula = Surv(rep(1, 698844L), get(var)) ~ max_temp + 
     strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
 
-  n= 699220, number of events= 174805 
+  n= 698844, number of events= 174711 
 
               coef exp(coef)  se(coef)     z Pr(>|z|)    
-max_temp 0.0050888 1.0051018 0.0005907 8.615   <2e-16 ***
+max_temp 0.0050877 1.0051007 0.0005907 8.613   <2e-16 ***
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
@@ -64,19 +148,23 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’
 max_temp     1.005     0.9949     1.004     1.006
 
 Concordance= 0.506  (se = 0.001 )
-Likelihood ratio test= 74.28  on 1 df,   p=<2e-16
-Wald test            = 74.22  on 1 df,   p=<2e-16
-Score (logrank) test = 74.23  on 1 df,   p=<2e-16
+Likelihood ratio test= 74.25  on 1 df,   p=<2e-16
+Wald test            = 74.18  on 1 df,   p=<2e-16
+Score (logrank) test = 74.19  on 1 df,   p=<2e-16
 
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.025765
+[1] 1.019844
+[1] 1.03172
 ANXIETY 
 Call:
-coxph(formula = Surv(rep(1, 312304L), get(var)) ~ max_temp + 
+coxph(formula = Surv(rep(1, 312212L), get(var)) ~ max_temp + 
     strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
 
-  n= 312304, number of events= 78076 
+  n= 312212, number of events= 78053 
 
              coef exp(coef) se(coef)     z Pr(>|z|)    
-max_temp 0.005016  1.005029 0.000871 5.759 8.47e-09 ***
+max_temp 0.005011  1.005024 0.000871 5.753 8.74e-09 ***
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
@@ -84,19 +172,23 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’
 max_temp     1.005      0.995     1.003     1.007
 
 Concordance= 0.506  (se = 0.002 )
-Likelihood ratio test= 33.19  on 1 df,   p=8e-09
-Wald test            = 33.16  on 1 df,   p=8e-09
-Score (logrank) test = 33.17  on 1 df,   p=8e-09
+Likelihood ratio test= 33.13  on 1 df,   p=9e-09
+Wald test            = 33.1  on 1 df,   p=9e-09
+Score (logrank) test = 33.11  on 1 df,   p=9e-09
 
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.025373
+[1] 1.016658
+[1] 1.034163
 EMOTION_DISTURB 
 Call:
-coxph(formula = Surv(rep(1, 488468L), get(var)) ~ max_temp + 
+coxph(formula = Surv(rep(1, 488404L), get(var)) ~ max_temp + 
     strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
 
-  n= 488468, number of events= 122117 
+  n= 488404, number of events= 122101 
 
               coef exp(coef)  se(coef)     z Pr(>|z|)    
-max_temp 0.0042428 1.0042518 0.0006846 6.198 5.73e-10 ***
+max_temp 0.0042406 1.0042496 0.0006846 6.194 5.85e-10 ***
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
@@ -104,19 +196,23 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’
 max_temp     1.004     0.9958     1.003     1.006
 
 Concordance= 0.505  (se = 0.001 )
-Likelihood ratio test= 38.44  on 1 df,   p=6e-10
-Wald test            = 38.41  on 1 df,   p=6e-10
-Score (logrank) test = 38.42  on 1 df,   p=6e-10
+Likelihood ratio test= 38.4  on 1 df,   p=6e-10
+Wald test            = 38.37  on 1 df,   p=6e-10
+Score (logrank) test = 38.37  on 1 df,   p=6e-10
 
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.021429
+[1] 1.0146
+[1] 1.028305
 ADOLE_REACTION 
 Call:
-coxph(formula = Surv(rep(1, 517352L), get(var)) ~ max_temp + 
+coxph(formula = Surv(rep(1, 517236L), get(var)) ~ max_temp + 
     strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
 
-  n= 517352, number of events= 129338 
+  n= 517236, number of events= 129309 
 
               coef exp(coef)  se(coef)     z Pr(>|z|)    
-max_temp 0.0050465 1.0050592 0.0006795 7.427 1.11e-13 ***
+max_temp 0.0050440 1.0050567 0.0006795 7.423 1.14e-13 ***
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
@@ -124,19 +220,23 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’
 max_temp     1.005      0.995     1.004     1.006
 
 Concordance= 0.506  (se = 0.001 )
-Likelihood ratio test= 55.2  on 1 df,   p=1e-13
-Wald test            = 55.16  on 1 df,   p=1e-13
-Score (logrank) test = 55.17  on 1 df,   p=1e-13
+Likelihood ratio test= 55.15  on 1 df,   p=1e-13
+Wald test            = 55.1  on 1 df,   p=1e-13
+Score (logrank) test = 55.11  on 1 df,   p=1e-13
 
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.02554
+[1] 1.018734
+[1] 1.032392
 DISTURB_CONDUCT 
 Call:
-coxph(formula = Surv(rep(1, 458372L), get(var)) ~ max_temp + 
+coxph(formula = Surv(rep(1, 458224L), get(var)) ~ max_temp + 
     strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
 
-  n= 458372, number of events= 114593 
+  n= 458224, number of events= 114556 
 
               coef exp(coef)  se(coef)     z Pr(>|z|)    
-max_temp 0.0035903 1.0035968 0.0007281 4.931 8.17e-07 ***
+max_temp 0.0035890 1.0035954 0.0007281 4.929 8.25e-07 ***
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
@@ -144,10 +244,14 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’
 max_temp     1.004     0.9964     1.002     1.005
 
 Concordance= 0.504  (se = 0.001 )
-Likelihood ratio test= 24.33  on 1 df,   p=8e-07
-Wald test            = 24.32  on 1 df,   p=8e-07
-Score (logrank) test = 24.32  on 1 df,   p=8e-07
+Likelihood ratio test= 24.31  on 1 df,   p=8e-07
+Wald test            = 24.3  on 1 df,   p=8e-07
+Score (logrank) test = 24.3  on 1 df,   p=8e-07
 
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.018107
+[1] 1.010868
+[1] 1.025397
 > 
 > for (var in varList) {
 +   cat(toupper(var),"\n")
@@ -159,33 +263,33 @@ Score (logrank) test = 24.32  on 1 df,   p=8e-07
 + }
 DEPRESSION 
 Call:
-coxph(formula = Surv(rep(1, 699220L), get(var)) ~ min_humid + 
+coxph(formula = Surv(rep(1, 698844L), get(var)) ~ min_humid + 
     strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
 
-  n= 699220, number of events= 174805 
+  n= 698844, number of events= 174711 
 
                coef exp(coef)  se(coef)      z Pr(>|z|)    
-min_humid -0.001050  0.998950  0.000278 -3.778 0.000158 ***
+min_humid -0.001051  0.998949  0.000278 -3.782 0.000156 ***
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
           exp(coef) exp(-coef) lower .95 upper .95
-min_humid     0.999      1.001    0.9984    0.9995
+min_humid    0.9989      1.001    0.9984    0.9995
 
 Concordance= 0.503  (se = 0.001 )
-Likelihood ratio test= 14.29  on 1 df,   p=2e-04
-Wald test            = 14.27  on 1 df,   p=2e-04
-Score (logrank) test = 14.27  on 1 df,   p=2e-04
+Likelihood ratio test= 14.31  on 1 df,   p=2e-04
+Wald test            = 14.3  on 1 df,   p=2e-04
+Score (logrank) test = 14.3  on 1 df,   p=2e-04
 
 ANXIETY 
 Call:
-coxph(formula = Surv(rep(1, 312304L), get(var)) ~ min_humid + 
+coxph(formula = Surv(rep(1, 312212L), get(var)) ~ min_humid + 
     strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
 
-  n= 312304, number of events= 78076 
+  n= 312212, number of events= 78053 
 
                 coef  exp(coef)   se(coef)      z Pr(>|z|)    
-min_humid -0.0018505  0.9981512  0.0004146 -4.464 8.06e-06 ***
+min_humid -0.0018471  0.9981547  0.0004146 -4.455 8.39e-06 ***
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
@@ -193,19 +297,19 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’
 min_humid    0.9982      1.002    0.9973     0.999
 
 Concordance= 0.506  (se = 0.002 )
-Likelihood ratio test= 19.95  on 1 df,   p=8e-06
-Wald test            = 19.92  on 1 df,   p=8e-06
-Score (logrank) test = 19.93  on 1 df,   p=8e-06
+Likelihood ratio test= 19.88  on 1 df,   p=8e-06
+Wald test            = 19.85  on 1 df,   p=8e-06
+Score (logrank) test = 19.85  on 1 df,   p=8e-06
 
 EMOTION_DISTURB 
 Call:
-coxph(formula = Surv(rep(1, 488468L), get(var)) ~ min_humid + 
+coxph(formula = Surv(rep(1, 488404L), get(var)) ~ min_humid + 
     strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
 
-  n= 488468, number of events= 122117 
+  n= 488404, number of events= 122101 
 
                 coef  exp(coef)   se(coef)      z Pr(>|z|)  
-min_humid -0.0005862  0.9994140  0.0003367 -1.741   0.0817 .
+min_humid -0.0005855  0.9994147  0.0003367 -1.739   0.0821 .
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
@@ -213,19 +317,19 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’
 min_humid    0.9994      1.001    0.9988         1
 
 Concordance= 0.502  (se = 0.001 )
-Likelihood ratio test= 3.03  on 1 df,   p=0.08
-Wald test            = 3.03  on 1 df,   p=0.08
-Score (logrank) test = 3.03  on 1 df,   p=0.08
+Likelihood ratio test= 3.02  on 1 df,   p=0.08
+Wald test            = 3.02  on 1 df,   p=0.08
+Score (logrank) test = 3.02  on 1 df,   p=0.08
 
 ADOLE_REACTION 
 Call:
-coxph(formula = Surv(rep(1, 517352L), get(var)) ~ min_humid + 
+coxph(formula = Surv(rep(1, 517236L), get(var)) ~ min_humid + 
     strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
 
-  n= 517352, number of events= 129338 
+  n= 517236, number of events= 129309 
 
                 coef  exp(coef)   se(coef)      z Pr(>|z|)    
-min_humid -0.0011352  0.9988654  0.0003306 -3.434 0.000595 ***
+min_humid -0.0011325  0.9988681  0.0003306 -3.425 0.000614 ***
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
@@ -233,19 +337,19 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’
 min_humid    0.9989      1.001    0.9982    0.9995
 
 Concordance= 0.504  (se = 0.001 )
-Likelihood ratio test= 11.8  on 1 df,   p=6e-04
-Wald test            = 11.79  on 1 df,   p=6e-04
-Score (logrank) test = 11.79  on 1 df,   p=6e-04
+Likelihood ratio test= 11.74  on 1 df,   p=6e-04
+Wald test            = 11.73  on 1 df,   p=6e-04
+Score (logrank) test = 11.73  on 1 df,   p=6e-04
 
 DISTURB_CONDUCT 
 Call:
-coxph(formula = Surv(rep(1, 458372L), get(var)) ~ min_humid + 
+coxph(formula = Surv(rep(1, 458224L), get(var)) ~ min_humid + 
     strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
 
-  n= 458372, number of events= 114593 
+  n= 458224, number of events= 114556 
 
                 coef  exp(coef)   se(coef)      z Pr(>|z|)  
-min_humid -0.0007100  0.9992902  0.0003523 -2.016   0.0438 *
+min_humid -0.0007079  0.9992924  0.0003523 -2.009   0.0445 *
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
@@ -253,9 +357,9 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’
 min_humid    0.9993      1.001    0.9986         1
 
 Concordance= 0.502  (se = 0.001 )
-Likelihood ratio test= 4.06  on 1 df,   p=0.04
-Wald test            = 4.06  on 1 df,   p=0.04
-Score (logrank) test = 4.06  on 1 df,   p=0.04
+Likelihood ratio test= 4.04  on 1 df,   p=0.04
+Wald test            = 4.04  on 1 df,   p=0.04
+Score (logrank) test = 4.04  on 1 df,   p=0.04
 
 > 
 > for (var in varList) {
@@ -265,16 +369,21 @@ Score (logrank) test = 4.06  on 1 df,   p=0.04
 +            term = 1, se = T, col.se = "black", col.term = "black")
 +   mod <- clogit(get(var) ~ heat_index + strata(bene_id), data=dt[get(paste0(var,"DT")),])
 +   print(summary(mod))
++   cat("print OR for 5 unit increase in temperature and its 95CI \n")
++   est <- coef(mod)[['heat_index']]; se <- sqrt(vcov(mod)[1,1])
++   print(exp(est*5))
++   print(exp((est-qnorm(.975)*se)*5))
++   print(exp((est+qnorm(.975)*se)*5))
 + }
 DEPRESSION 
 Call:
-coxph(formula = Surv(rep(1, 699220L), get(var)) ~ heat_index + 
+coxph(formula = Surv(rep(1, 698844L), get(var)) ~ heat_index + 
     strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
 
-  n= 699220, number of events= 174805 
+  n= 698844, number of events= 174711 
 
-                coef exp(coef)  se(coef)    z Pr(>|z|)    
-heat_index 0.0039932 1.0040012 0.0005616 7.11 1.16e-12 ***
+                coef exp(coef)  se(coef)     z Pr(>|z|)    
+heat_index 0.0039924 1.0040003 0.0005616 7.108 1.17e-12 ***
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
@@ -282,19 +391,23 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’
 heat_index     1.004      0.996     1.003     1.005
 
 Concordance= 0.506  (se = 0.001 )
-Likelihood ratio test= 50.58  on 1 df,   p=1e-12
-Wald test            = 50.56  on 1 df,   p=1e-12
-Score (logrank) test = 50.56  on 1 df,   p=1e-12
+Likelihood ratio test= 50.55  on 1 df,   p=1e-12
+Wald test            = 50.53  on 1 df,   p=1e-12
+Score (logrank) test = 50.54  on 1 df,   p=1e-12
 
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.020162
+[1] 1.014563
+[1] 1.025793
 ANXIETY 
 Call:
-coxph(formula = Surv(rep(1, 312304L), get(var)) ~ heat_index + 
+coxph(formula = Surv(rep(1, 312212L), get(var)) ~ heat_index + 
     strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
 
-  n= 312304, number of events= 78076 
+  n= 312212, number of events= 78053 
 
                 coef exp(coef)  se(coef)     z Pr(>|z|)    
-heat_index 0.0040909 1.0040993 0.0008261 4.952 7.33e-07 ***
+heat_index 0.0040869 1.0040952 0.0008261 4.947 7.52e-07 ***
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
@@ -302,19 +415,23 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’
 heat_index     1.004     0.9959     1.002     1.006
 
 Concordance= 0.505  (se = 0.002 )
-Likelihood ratio test= 24.53  on 1 df,   p=7e-07
-Wald test            = 24.53  on 1 df,   p=7e-07
-Score (logrank) test = 24.53  on 1 df,   p=7e-07
+Likelihood ratio test= 24.48  on 1 df,   p=7e-07
+Wald test            = 24.48  on 1 df,   p=8e-07
+Score (logrank) test = 24.48  on 1 df,   p=8e-07
 
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.020644
+[1] 1.012415
+[1] 1.02894
 EMOTION_DISTURB 
 Call:
-coxph(formula = Surv(rep(1, 488468L), get(var)) ~ heat_index + 
+coxph(formula = Surv(rep(1, 488404L), get(var)) ~ heat_index + 
     strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
 
-  n= 488468, number of events= 122117 
+  n= 488404, number of events= 122101 
 
                 coef exp(coef)  se(coef)     z Pr(>|z|)    
-heat_index 0.0032858 1.0032912 0.0006456 5.089  3.6e-07 ***
+heat_index 0.0032841 1.0032895 0.0006456 5.087 3.65e-07 ***
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
@@ -322,19 +439,23 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’
 heat_index     1.003     0.9967     1.002     1.005
 
 Concordance= 0.505  (se = 0.001 )
-Likelihood ratio test= 25.91  on 1 df,   p=4e-07
-Wald test            = 25.9  on 1 df,   p=4e-07
-Score (logrank) test = 25.9  on 1 df,   p=4e-07
+Likelihood ratio test= 25.88  on 1 df,   p=4e-07
+Wald test            = 25.87  on 1 df,   p=4e-07
+Score (logrank) test = 25.87  on 1 df,   p=4e-07
 
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.016556
+[1] 1.010144
+[1] 1.023008
 ADOLE_REACTION 
 Call:
-coxph(formula = Surv(rep(1, 517352L), get(var)) ~ heat_index + 
+coxph(formula = Surv(rep(1, 517236L), get(var)) ~ heat_index + 
     strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
 
-  n= 517352, number of events= 129338 
+  n= 517236, number of events= 129309 
 
                coef exp(coef) se(coef)     z Pr(>|z|)    
-heat_index 0.004269  1.004278 0.000643 6.639 3.16e-11 ***
+heat_index 0.004266  1.004275 0.000643 6.635 3.25e-11 ***
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
@@ -342,19 +463,23 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’
 heat_index     1.004     0.9957     1.003     1.006
 
 Concordance= 0.505  (se = 0.001 )
-Likelihood ratio test= 44.09  on 1 df,   p=3e-11
-Wald test            = 44.08  on 1 df,   p=3e-11
-Score (logrank) test = 44.08  on 1 df,   p=3e-11
+Likelihood ratio test= 44.04  on 1 df,   p=3e-11
+Wald test            = 44.02  on 1 df,   p=3e-11
+Score (logrank) test = 44.03  on 1 df,   p=3e-11
 
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.021561
+[1] 1.015144
+[1] 1.028018
 DISTURB_CONDUCT 
 Call:
-coxph(formula = Surv(rep(1, 458372L), get(var)) ~ heat_index + 
+coxph(formula = Surv(rep(1, 458224L), get(var)) ~ heat_index + 
     strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
 
-  n= 458372, number of events= 114593 
+  n= 458224, number of events= 114556 
 
                 coef exp(coef)  se(coef)     z Pr(>|z|)    
-heat_index 0.0027134 1.0027171 0.0006856 3.958 7.56e-05 ***
+heat_index 0.0027130 1.0027167 0.0006856 3.957 7.58e-05 ***
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
@@ -362,11 +487,15 @@ Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’
 heat_index     1.003     0.9973     1.001     1.004
 
 Concordance= 0.503  (se = 0.001 )
-Likelihood ratio test= 15.67  on 1 df,   p=8e-05
-Wald test            = 15.67  on 1 df,   p=8e-05
-Score (logrank) test = 15.67  on 1 df,   p=8e-05
+Likelihood ratio test= 15.66  on 1 df,   p=8e-05
+Wald test            = 15.66  on 1 df,   p=8e-05
+Score (logrank) test = 15.66  on 1 df,   p=8e-05
 
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.013658
+[1] 1.00687
+[1] 1.020491
 > 
 > proc.time()
    user  system elapsed 
-199.815   2.348 193.445 
+202.554   2.503 195.915 

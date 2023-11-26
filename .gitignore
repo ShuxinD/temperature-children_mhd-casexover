@@ -1,4 +1,6 @@
 data/
+*.err
+*.out
 # History files
 .Rhistory
 .Rapp.history

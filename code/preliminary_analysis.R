@@ -64,7 +64,9 @@ for (var in varList) {
   print(summary(mod))
   cat("print OR for 5 unit increase in temperature and its 95CI \n")
   est <- coef(mod)[['max_temp']]; se <- sqrt(vcov(mod)[1,1])
-  exp(est*5); exp((est-qnorm(.975)*se)*5); exp((est+qnorm(.975)*se)*5)
+  print(exp(est*5))
+  print(exp((est-qnorm(.975)*se)*5))
+  print(exp((est+qnorm(.975)*se)*5))
 }
 
 for (var in varList) {
@@ -85,5 +87,7 @@ for (var in varList) {
   print(summary(mod))
   cat("print OR for 5 unit increase in temperature and its 95CI \n")
   est <- coef(mod)[['heat_index']]; se <- sqrt(vcov(mod)[1,1])
-  exp(est*5); exp((est-qnorm(.975)*se)*5); exp((est+qnorm(.975)*se)*5)
+  print(exp(est*5))
+  print(exp((est-qnorm(.975)*se)*5))
+  print(exp((est+qnorm(.975)*se)*5))
 }
