@@ -1,0 +1,372 @@
+> #' preliminary analysis
+> #' 
+> 
+> 
+> rm(list=ls()); gc()
+         used (Mb) gc trigger (Mb) max used (Mb)
+Ncells 283111 15.2     664168 35.5   450926 24.1
+Vcells 486861  3.8    8388608 64.0  1814805 13.9
+> require(data.table); setDTthreads(threads = 0)
+Loading required package: data.table
+> require(survival); require(fst)
+Loading required package: survival
+Loading required package: fst
+> require(splines); require(weathermetrics)
+Loading required package: splines
+Loading required package: weathermetrics
+> wkdir <- "/n/dominici_nsaph_l3/Lab/projects/temperature-children_depression-casexover"
+> dt <- read_fst(file.path(wkdir,"data","data_to_analyze.fst"), as.data.table = T)
+> 
+> ## create exposure variables ----
+> #'  temperature Kelvin to Celcius: -273.15 
+> #'  heat index: `weathermetrics::heat.index`
+> #'  set min. humidity above 100 (slightly) to 100
+> dt[, max_temp_C:=max_temp-273.15]
+> dt[, min_humid_fixed := ifelse(min_humid>100, 100, min_humid)]
+> dt[, heat_index := heat.index(t = max_temp_C, rh = min_humid_fixed, 
++                               temperature.metric = "celsius", output.metric = "celsius")]
+> anyNA(dt)
+[1] FALSE
+> dt[is.na(heat_index),]
+Empty data.table (0 rows and 18 cols): bene_id,date,zip,max_temp,min_humid,depression...
+> 
+> summary(dt[,.(max_temp_C, min_humid_fixed, heat_index)])
+   max_temp_C      min_humid_fixed     heat_index     
+ Min.   :-256.90   Min.   :  0.307   Min.   :-257.00  
+ 1st Qu.:  12.48   1st Qu.: 32.987   1st Qu.:  11.00  
+ Median :  21.51   Median : 42.396   Median :  21.00  
+ Mean   :  19.83   Mean   : 42.106   Mean   :  19.38  
+ 3rd Qu.:  28.23   3rd Qu.: 51.412   3rd Qu.:  28.00  
+ Max.   :  47.89   Max.   :100.000   Max.   :  55.00  
+> 
+> varList <- c("depression", "anxiety", "emotion_disturb", "adole_reaction", "disturb_conduct")
+> for (var in varList) {
++   cat(toupper(var),"\n")
++   mod_ns <- clogit(get(var) ~ ns(max_temp, df=4) + strata(bene_id), data=dt[get(paste0(var,"DT")),])
++   termplot(mod_ns, xlab = "max temp.", ylabs = var, 
++            term = 1, se = T, col.se = "black", col.term = "black")
++   mod <- clogit(get(var) ~ max_temp + strata(bene_id), data=dt[get(paste0(var,"DT")),])
++   print(summary(mod))
++ }
+DEPRESSION 
+Call:
+coxph(formula = Surv(rep(1, 699220L), get(var)) ~ max_temp + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 699220, number of events= 174805 
+
+              coef exp(coef)  se(coef)     z Pr(>|z|)    
+max_temp 0.0050888 1.0051018 0.0005907 8.615   <2e-16 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+         exp(coef) exp(-coef) lower .95 upper .95
+max_temp     1.005     0.9949     1.004     1.006
+
+Concordance= 0.506  (se = 0.001 )
+Likelihood ratio test= 74.28  on 1 df,   p=<2e-16
+Wald test            = 74.22  on 1 df,   p=<2e-16
+Score (logrank) test = 74.23  on 1 df,   p=<2e-16
+
+ANXIETY 
+Call:
+coxph(formula = Surv(rep(1, 312304L), get(var)) ~ max_temp + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 312304, number of events= 78076 
+
+             coef exp(coef) se(coef)     z Pr(>|z|)    
+max_temp 0.005016  1.005029 0.000871 5.759 8.47e-09 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+         exp(coef) exp(-coef) lower .95 upper .95
+max_temp     1.005      0.995     1.003     1.007
+
+Concordance= 0.506  (se = 0.002 )
+Likelihood ratio test= 33.19  on 1 df,   p=8e-09
+Wald test            = 33.16  on 1 df,   p=8e-09
+Score (logrank) test = 33.17  on 1 df,   p=8e-09
+
+EMOTION_DISTURB 
+Call:
+coxph(formula = Surv(rep(1, 488468L), get(var)) ~ max_temp + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 488468, number of events= 122117 
+
+              coef exp(coef)  se(coef)     z Pr(>|z|)    
+max_temp 0.0042428 1.0042518 0.0006846 6.198 5.73e-10 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+         exp(coef) exp(-coef) lower .95 upper .95
+max_temp     1.004     0.9958     1.003     1.006
+
+Concordance= 0.505  (se = 0.001 )
+Likelihood ratio test= 38.44  on 1 df,   p=6e-10
+Wald test            = 38.41  on 1 df,   p=6e-10
+Score (logrank) test = 38.42  on 1 df,   p=6e-10
+
+ADOLE_REACTION 
+Call:
+coxph(formula = Surv(rep(1, 517352L), get(var)) ~ max_temp + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 517352, number of events= 129338 
+
+              coef exp(coef)  se(coef)     z Pr(>|z|)    
+max_temp 0.0050465 1.0050592 0.0006795 7.427 1.11e-13 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+         exp(coef) exp(-coef) lower .95 upper .95
+max_temp     1.005      0.995     1.004     1.006
+
+Concordance= 0.506  (se = 0.001 )
+Likelihood ratio test= 55.2  on 1 df,   p=1e-13
+Wald test            = 55.16  on 1 df,   p=1e-13
+Score (logrank) test = 55.17  on 1 df,   p=1e-13
+
+DISTURB_CONDUCT 
+Call:
+coxph(formula = Surv(rep(1, 458372L), get(var)) ~ max_temp + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 458372, number of events= 114593 
+
+              coef exp(coef)  se(coef)     z Pr(>|z|)    
+max_temp 0.0035903 1.0035968 0.0007281 4.931 8.17e-07 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+         exp(coef) exp(-coef) lower .95 upper .95
+max_temp     1.004     0.9964     1.002     1.005
+
+Concordance= 0.504  (se = 0.001 )
+Likelihood ratio test= 24.33  on 1 df,   p=8e-07
+Wald test            = 24.32  on 1 df,   p=8e-07
+Score (logrank) test = 24.32  on 1 df,   p=8e-07
+
+> 
+> for (var in varList) {
++   cat(toupper(var),"\n")
++   mod_ns <- clogit(get(var) ~ ns(min_humid, df=4) + strata(bene_id), data=dt[get(paste0(var,"DT")),])
++   termplot(mod_ns, xlab = "min humidity", ylabs = var, 
++            term = 1, se = T, col.se = "black", col.term = "black")
++   mod <- clogit(get(var) ~ min_humid + strata(bene_id), data=dt[get(paste0(var,"DT")),])
++   print(summary(mod))
++ }
+DEPRESSION 
+Call:
+coxph(formula = Surv(rep(1, 699220L), get(var)) ~ min_humid + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 699220, number of events= 174805 
+
+               coef exp(coef)  se(coef)      z Pr(>|z|)    
+min_humid -0.001050  0.998950  0.000278 -3.778 0.000158 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+          exp(coef) exp(-coef) lower .95 upper .95
+min_humid     0.999      1.001    0.9984    0.9995
+
+Concordance= 0.503  (se = 0.001 )
+Likelihood ratio test= 14.29  on 1 df,   p=2e-04
+Wald test            = 14.27  on 1 df,   p=2e-04
+Score (logrank) test = 14.27  on 1 df,   p=2e-04
+
+ANXIETY 
+Call:
+coxph(formula = Surv(rep(1, 312304L), get(var)) ~ min_humid + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 312304, number of events= 78076 
+
+                coef  exp(coef)   se(coef)      z Pr(>|z|)    
+min_humid -0.0018505  0.9981512  0.0004146 -4.464 8.06e-06 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+          exp(coef) exp(-coef) lower .95 upper .95
+min_humid    0.9982      1.002    0.9973     0.999
+
+Concordance= 0.506  (se = 0.002 )
+Likelihood ratio test= 19.95  on 1 df,   p=8e-06
+Wald test            = 19.92  on 1 df,   p=8e-06
+Score (logrank) test = 19.93  on 1 df,   p=8e-06
+
+EMOTION_DISTURB 
+Call:
+coxph(formula = Surv(rep(1, 488468L), get(var)) ~ min_humid + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 488468, number of events= 122117 
+
+                coef  exp(coef)   se(coef)      z Pr(>|z|)  
+min_humid -0.0005862  0.9994140  0.0003367 -1.741   0.0817 .
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+          exp(coef) exp(-coef) lower .95 upper .95
+min_humid    0.9994      1.001    0.9988         1
+
+Concordance= 0.502  (se = 0.001 )
+Likelihood ratio test= 3.03  on 1 df,   p=0.08
+Wald test            = 3.03  on 1 df,   p=0.08
+Score (logrank) test = 3.03  on 1 df,   p=0.08
+
+ADOLE_REACTION 
+Call:
+coxph(formula = Surv(rep(1, 517352L), get(var)) ~ min_humid + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 517352, number of events= 129338 
+
+                coef  exp(coef)   se(coef)      z Pr(>|z|)    
+min_humid -0.0011352  0.9988654  0.0003306 -3.434 0.000595 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+          exp(coef) exp(-coef) lower .95 upper .95
+min_humid    0.9989      1.001    0.9982    0.9995
+
+Concordance= 0.504  (se = 0.001 )
+Likelihood ratio test= 11.8  on 1 df,   p=6e-04
+Wald test            = 11.79  on 1 df,   p=6e-04
+Score (logrank) test = 11.79  on 1 df,   p=6e-04
+
+DISTURB_CONDUCT 
+Call:
+coxph(formula = Surv(rep(1, 458372L), get(var)) ~ min_humid + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 458372, number of events= 114593 
+
+                coef  exp(coef)   se(coef)      z Pr(>|z|)  
+min_humid -0.0007100  0.9992902  0.0003523 -2.016   0.0438 *
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+          exp(coef) exp(-coef) lower .95 upper .95
+min_humid    0.9993      1.001    0.9986         1
+
+Concordance= 0.502  (se = 0.001 )
+Likelihood ratio test= 4.06  on 1 df,   p=0.04
+Wald test            = 4.06  on 1 df,   p=0.04
+Score (logrank) test = 4.06  on 1 df,   p=0.04
+
+> 
+> for (var in varList) {
++   cat(toupper(var),"\n")
++   mod_ns <- clogit(get(var) ~ ns(heat_index, df=4) + strata(bene_id), data=dt[get(paste0(var,"DT")),])
++   termplot(mod_ns, xlab = "heat index", ylabs = var, 
++            term = 1, se = T, col.se = "black", col.term = "black")
++   mod <- clogit(get(var) ~ heat_index + strata(bene_id), data=dt[get(paste0(var,"DT")),])
++   print(summary(mod))
++ }
+DEPRESSION 
+Call:
+coxph(formula = Surv(rep(1, 699220L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 699220, number of events= 174805 
+
+                coef exp(coef)  se(coef)    z Pr(>|z|)    
+heat_index 0.0039932 1.0040012 0.0005616 7.11 1.16e-12 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004      0.996     1.003     1.005
+
+Concordance= 0.506  (se = 0.001 )
+Likelihood ratio test= 50.58  on 1 df,   p=1e-12
+Wald test            = 50.56  on 1 df,   p=1e-12
+Score (logrank) test = 50.56  on 1 df,   p=1e-12
+
+ANXIETY 
+Call:
+coxph(formula = Surv(rep(1, 312304L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 312304, number of events= 78076 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)    
+heat_index 0.0040909 1.0040993 0.0008261 4.952 7.33e-07 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004     0.9959     1.002     1.006
+
+Concordance= 0.505  (se = 0.002 )
+Likelihood ratio test= 24.53  on 1 df,   p=7e-07
+Wald test            = 24.53  on 1 df,   p=7e-07
+Score (logrank) test = 24.53  on 1 df,   p=7e-07
+
+EMOTION_DISTURB 
+Call:
+coxph(formula = Surv(rep(1, 488468L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 488468, number of events= 122117 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)    
+heat_index 0.0032858 1.0032912 0.0006456 5.089  3.6e-07 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.003     0.9967     1.002     1.005
+
+Concordance= 0.505  (se = 0.001 )
+Likelihood ratio test= 25.91  on 1 df,   p=4e-07
+Wald test            = 25.9  on 1 df,   p=4e-07
+Score (logrank) test = 25.9  on 1 df,   p=4e-07
+
+ADOLE_REACTION 
+Call:
+coxph(formula = Surv(rep(1, 517352L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 517352, number of events= 129338 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)    
+heat_index 0.004269  1.004278 0.000643 6.639 3.16e-11 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004     0.9957     1.003     1.006
+
+Concordance= 0.505  (se = 0.001 )
+Likelihood ratio test= 44.09  on 1 df,   p=3e-11
+Wald test            = 44.08  on 1 df,   p=3e-11
+Score (logrank) test = 44.08  on 1 df,   p=3e-11
+
+DISTURB_CONDUCT 
+Call:
+coxph(formula = Surv(rep(1, 458372L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 458372, number of events= 114593 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)    
+heat_index 0.0027134 1.0027171 0.0006856 3.958 7.56e-05 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.003     0.9973     1.001     1.004
+
+Concordance= 0.503  (se = 0.001 )
+Likelihood ratio test= 15.67  on 1 df,   p=8e-05
+Wald test            = 15.67  on 1 df,   p=8e-05
+Score (logrank) test = 15.67  on 1 df,   p=8e-05
+
+> 
+> proc.time()
+   user  system elapsed 
+199.815   2.348 193.445 
