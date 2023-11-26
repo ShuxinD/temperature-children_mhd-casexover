@@ -1,0 +1,176 @@
+> #' prepare heat exposure
+> 
+> rm(list=ls())
+> gc()
+         used (Mb) gc trigger (Mb) max used (Mb)
+Ncells 283111 15.2     664168 35.5   450926 24.1
+Vcells 486861  3.8    8388608 64.0  1814805 13.9
+> require(fst)
+Loading required package: fst
+> require(data.table)
+Loading required package: data.table
+> setDTthreads(threads = 0)
+> require(lubridate)
+Loading required package: lubridate
+
+Attaching package: ‘lubridate’
+
+The following objects are masked from ‘package:data.table’:
+
+    hour, isoweek, mday, minute, month, quarter, second, wday, week,
+    yday, year
+
+The following objects are masked from ‘package:base’:
+
+    date, intersect, setdiff, union
+
+> dir <- "/n/dominici_nsaph_l3/Lab/data/gridmet_flat/" ## exposure dir
+> wkdir <- "/n/dominici_nsaph_l3/Lab/projects/temperature-children_depression-casexover"
+> 
+> ## prepare the mergeable date ----
+> ### case data ----
+> case <- read_fst(file.path(wkdir, "data", "first_hospitalization_only_date_zip.fst"), as.data.table = T) 
+> case[,admission_date:=ymd(admission_date)]
+> summary(case[, admission_date])
+        Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+"1999-01-01" "2002-10-14" "2006-05-03" "2006-04-24" "2009-12-15" "2012-12-31" 
+> case[, case_mday:=mday(admission_date)]
+> ### control data ---- 
+> ## find day of the month and other date with the same day of a month
+> ## mday <=7
+> temp_1 <- case[case_mday<=7,.(bene_id,zip,admission_date)][,`:=`(control_1 = admission_date + weeks(1),
++                                                        control_2 = admission_date + weeks(2),
++                                                        control_3 = admission_date + weeks(3))]
+> ## 8 <= mday <= 14
+> temp_2 <- case[(case_mday<=14)&(case_mday>=8),.(bene_id,zip,admission_date)][,`:=`(control_1 = admission_date - weeks(1),
++                                                                     control_2 = admission_date + weeks(1),
++                                                                     control_3 = admission_date + weeks(2))]
+> ## 15 <= mday <= 21
+> temp_3 <- case[(case_mday<=21)&(case_mday>=15),.(bene_id,zip,admission_date)][,`:=`(control_1 = admission_date - weeks(2),
++                                                                          control_2 = admission_date - weeks(1),
++                                                                          control_3 = admission_date + weeks(1))]
+> ## 22 <= mday
+> temp_4 <- case[case_mday>=22,.(bene_id,zip,admission_date)][,`:=`(control_1 = admission_date - weeks(3),
++                                                         control_2 = admission_date - weeks(2),
++                                                         control_3 = admission_date - weeks(1))]
+> temp_control <- rbindlist(list(temp_1, temp_2, temp_3, temp_4))
+> temp_control[,admission_date:=NULL] # temperature file contains only controls
+> control <- melt(temp_control, id.vars = c("bene_id","zip"), measure.vars = patterns("control"), variable.name = "tag", value.name = "control") # wide format to long
+> 
+> rm(temp_control);rm(temp_1);rm(temp_2);rm(temp_3);rm(temp_4)
+> gc()
+          used (Mb) gc trigger  (Mb) max used  (Mb)
+Ncells 1021183 54.6    1928417 103.0  1068251  57.1
+Vcells 8240468 62.9   16973908 129.6 13135305 100.3
+> write_fst(control, file.path(wkdir, "data", "first_hospitalization_only_date_zip_control.fst")) ## save mergeable info for controls
+> 
+> ## merge heat exposure data to control and case----
+> case_merge <- NULL
+> control_merge <- NULL
+> for (year in 1999:2012) {
++   cat("\n year", year)
++   cat("\n load max temp")
++   ## load max temp. data
++   load(paste0(dir, "maximum_air_temperature/", year,
++               "_maximum_air_temperature_by_zip.RData")) 
++   gc()
++   zip <- rownames(df); setDT(df)
++   df[,zip:=as.integer(zip)] # ZIP code
++   max_temp <- melt(df, id.vars = "zip", variable.name = "date", value.name = "max_temp") # wide to long format
++   max_temp[, date:=ymd(date)][]
++   cat("\n load min r.h.")
++   ## load RH data
++   load(paste0(dir, "minimum_relative_humidity/", year,
++               "_minimum_relative_humidity_by_zip.RData")) ## read in ZIP level daily RH data
++   gc()
++   zip <- rownames(df); setDT(df)
++   df[,zip:=as.integer(zip)]
++   min_humid <- melt(df, id.vars = "zip", variable.name = "date", value.name = "min_humid")
++   min_humid[, date:=ymd(date)][]
++   cat("\nget two exposures together")
++   exp <- merge(max_temp, min_humid, by = c("zip", "date"))
++   ## merge two exposure together
++   cat("\nmerge")
++   case_merge <- rbind(case_merge, merge(case[year(admission_date)==year],exp, by.x = c("admission_date","zip"), by.y = c("date","zip"), all.x = T))
++   control_merge <- rbind(control_merge, merge(control[year(control)==year],exp, by.x = c("control","zip"), by.y = c("date","zip"), all.x = T))
++ }
+
+ year 1999
+ load max temp
+ load min r.h.
+get two exposures together
+merge
+ year 2000
+ load max temp
+ load min r.h.
+get two exposures together
+merge
+ year 2001
+ load max temp
+ load min r.h.
+get two exposures together
+merge
+ year 2002
+ load max temp
+ load min r.h.
+get two exposures together
+merge
+ year 2003
+ load max temp
+ load min r.h.
+get two exposures together
+merge
+ year 2004
+ load max temp
+ load min r.h.
+get two exposures together
+merge
+ year 2005
+ load max temp
+ load min r.h.
+get two exposures together
+merge
+ year 2006
+ load max temp
+ load min r.h.
+get two exposures together
+merge
+ year 2007
+ load max temp
+ load min r.h.
+get two exposures together
+merge
+ year 2008
+ load max temp
+ load min r.h.
+get two exposures together
+merge
+ year 2009
+ load max temp
+ load min r.h.
+get two exposures together
+merge
+ year 2010
+ load max temp
+ load min r.h.
+get two exposures together
+merge
+ year 2011
+ load max temp
+ load min r.h.
+get two exposures together
+merge
+ year 2012
+ load max temp
+ load min r.h.
+get two exposures together
+merge> 
+> mergedCase <- case_merge[,.(bene_id,admission_date,zip,max_temp,min_humid)]
+> mergedcontrol <- control_merge[,.(bene_id,control,zip,max_temp,min_humid)]
+> 
+> write_fst(mergedCase, file.path(wkdir, "data","case_exposure.fst"))
+> write_fst(mergedcontrol, file.path(wkdir, "data", "control_exposure.fst"))
+> 
+> proc.time()
+   user  system elapsed 
+356.033  44.514 162.902 

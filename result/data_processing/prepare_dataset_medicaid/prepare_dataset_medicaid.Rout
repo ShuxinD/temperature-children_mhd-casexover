@@ -1,0 +1,213 @@
+> #' prepare the dataset from Medicaid
+> #' only include first hospitalization
+> 
+> rm(list=ls())
+> gc()
+         used (Mb) gc trigger (Mb) max used (Mb)
+Ncells 283111 15.2     664168 35.5   450926 24.1
+Vcells 486861  3.8    8388608 64.0  1814805 13.9
+> if(!require(data.table)) install.packages("data.table")
+Loading required package: data.table
+> require(data.table); require(fst)
+Loading required package: fst
+> setDTthreads(threads = 0)
+> 
+> ## load the extracted Medicare dataset ----
+> dt_dir <- "/n/dominici_nsaph_l3/Lab/projects/medicaid_children_icd/data/individual_records"
+> wkdir <- "/n/dominici_nsaph_l3/Lab/projects/temperature-children_depression-casexover"
+> dt_o <- fread(file.path(dt_dir,"disease_classification_demographics.csv"))
+> dim(dt_o)
+[1] 1595136      23
+> 
+> ## restrict the dataset to five outcome cases ----
+> dt <- dt_o[(depression==1)|(anxiety==1)|(emotion_disturb==1)|(adole_reaction==1)|(disturb_conduct==1),]
+> dim(dt)
+[1] 829095     23
+> anyDuplicated(dt) # check duplicated rows
+[1] 580
+> dt <- unique(dt)
+> anyDuplicated(dt);anyDuplicated(dt[,c("admission_date","bene_id")])
+[1] 0
+[1] 433
+> 
+> ## check all hospitalization data ----
+> colnames(dt)
+ [1] "diag1"               "diag2"               "diag3"              
+ [4] "diag4"               "diag5"               "diag6"              
+ [7] "diag7"               "diag8"               "diag9"              
+[10] "diagnosis"           "year"                "admission_date"     
+[13] "bene_id"             "n_th_admission"      "depression"         
+[16] "anxiety"             "emotion_disturb"     "adole_reaction"     
+[19] "disturb_conduct"     "zip"                 "race_ethnicity_code"
+[22] "sex"                 "age"                
+> ### diag1 -- diag9, diagnosis: good
+> 
+> ### year: the year of admission_date (admission year); admission_date: good
+> 
+> ### bene_id: good
+> 
+> ### n_th_admission: PROBLEMATIC, but will not affect the final dataset ----
+> summary(dt[, n_th_admission]) # the hospitalization admitted with outcome of interest
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  1.000   1.000   1.000   2.348   2.000 132.000 
+> 
+> ### depression, anxiety, emotion_disturb, adole_reaction, disturb_conduct: processed variable, decide to trust the data processing
+> 
+> ### zip: need validation ----
+> official_zip <- fread(file.path(wkdir, "data", "zip_code_database.csv"))
+> dt[, validZIP := zip %in% official_zip[,zip]] # ZIP codes in the official database is valid
+> summary(dt[,validZIP])
+   Mode   FALSE    TRUE 
+logical    4162  809609 
+> cat("invalid ZIP proportion", 1-mean(dt[,validZIP]))
+invalid ZIP proportion 0.005114461> invalidZIP_id <- dt[!(validZIP), bene_id]
+> saveRDS(invalidZIP_id, file.path(wkdir, "data", "missing", "missing_ZIP.rds"))
+> 
+> ### race_ethnicity_code: need processing ----
+> ## check the zero portion
+> dt[, rec_0:=race_ethnicity_code %like% "0"]
+> cat("race/ethnicity == 0 proportion (should not be zero in coding)", sum(dt[,rec_0])/dim(dt)[1])
+race/ethnicity == 0 proportion (should not be zero in coding) 0.0004386984> cat("code 0 proportion vary by year \n"); setorder(dt[,.(count_rec0=sum(rec_0),
+code 0 proportion vary by year 
++                                                          percent_rec=sum(rec_0)/.N), by = year],year)[]
+    year count_rec0  percent_rec
+ 1: 1999         18 0.0004222676
+ 2: 2000         10 0.0002048173
+ 3: 2001         23 0.0004386634
+ 4: 2002         39 0.0006876851
+ 5: 2003         22 0.0003834690
+ 6: 2004         26 0.0004447942
+ 7: 2005         20 0.0003450477
+ 8: 2006         31 0.0005205797
+ 9: 2007         40 0.0007188943
+10: 2008         33 0.0005855320
+11: 2009         22 0.0003513030
+12: 2010         29 0.0005067361
+13: 2011         21 0.0003197174
+14: 2012         23 0.0002794552
+> 
+> ## drop the row with 0, convert code to binary variables
+> dt[, `:=`(rec_0 = race_ethnicity_code %like% "0",
++           rec_1 = race_ethnicity_code %like% "1",
++           rec_2 = race_ethnicity_code %like% "2",
++           rec_3 = race_ethnicity_code %like% "3",
++           rec_4 = race_ethnicity_code %like% "4",
++           rec_5 = race_ethnicity_code %like% "5",
++           rec_6 = race_ethnicity_code %like% "6",
++           rec_7 = race_ethnicity_code %like% "7",
++           rec_8 = race_ethnicity_code %like% "8",
++           rec_9 = race_ethnicity_code %like% "9")]
+> ## code: https://resdac.org/cms-data/variables/raceethnicity-msis
+> ## need to drop rec==0 in the end
+> invalidREC_id <- dt[(rec_0), bene_id]
+> saveRDS(invalidREC_id, file.path(wkdir, "data", "missing", "missing_rec.rds"))
+> 
+> ### sex: need processing ----
+> dt[,sex:=as.factor(sex)]
+> cat("count by levels\n"); summary(dt[,sex])
+count by levels
+     F    F,M  F,M,U    F,U      M    M,U      U 
+393122   7733    231  11420 390825  10424     16 
+> cat("prop. by levels\n"); summary(dt[,sex])/dim(dt)[1]*100
+prop. by levels
+           F          F,M        F,M,U          F,U            M          M,U 
+48.308676520  0.950267336  0.028386364  1.403343201 48.026410378  1.280950046 
+           U 
+ 0.001966155 
+> # check_sex <- dt[,.(sex_unique=uniqueN(sex)), by= bene_id]
+> # check_sex[sex_unique!=1,]
+> # > check_sex[sex_unique!=1,]
+> # Empty data.table (0 rows and 2 cols): bene_id,sex_unique
+> ## no sex inconsistency
+> ## need to drop sex input >1
+> invalidSEX_id <- dt[!((sex=="F")|(sex=="M")), bene_id]
+> saveRDS(invalidSEX_id, file.path(wkdir, "data", "missing", "missing_sex.rds"))
+> 
+> ### age: ok ----
+> hist(dt[,age])
+> # pdf(file = file.path("results","data_processing","original_age_distribution_all_hospitalization.pdf"), paper = "USr")
+> # hist(dt[,age])
+> # dev.off()
+> 
+> ## subset the first hospitalization ----
+> setorder(dt, bene_id, admission_date)
+> dt_1hosp <- dt[, .SD[1], by = bene_id] ## select first hospitalization
+> mean(dt_1hosp[, validZIP]) # proportion with valid ZIP codes
+[1] 0.9948728
+> # dt_1hosp <- dt_1hosp[(validZIP),]
+> anyDuplicated(dt_1hosp[,c("admission_date","bene_id", "zip")])
+[1] 0
+> hist(dt_1hosp[,age])
+> write_fst(dt_1hosp, file.path(wkdir, "data", "first_hospitalization_original.fst"))
+> write_fst(dt_1hosp[,.(bene_id, admission_date, zip)], file.path(wkdir, "data","first_hospitalization_only_date_zip_original.fst"))
+> 
+> ## removing missingness ----
+> cat("original Mediciad cases \n")
+original Mediciad cases 
+> dim(dt_1hosp[(depression),])[1]
+[1] 184900
+> dim(dt_1hosp[(anxiety),])[1]
+[1] 82319
+> dim(dt_1hosp[(emotion_disturb),])[1]
+[1] 128478
+> dim(dt_1hosp[(adole_reaction),])[1]
+[1] 136649
+> dim(dt_1hosp[(disturb_conduct),])[1]
+[1] 121044
+> 
+> cat("after removing subjects with invalid sex inputs \n")
+after removing subjects with invalid sex inputs 
+> dim(dt_1hosp[(depression) & (!(bene_id %in% invalidSEX_id)), ])[1]
+[1] 177914
+> dim(dt_1hosp[(anxiety) & (!(bene_id %in% invalidSEX_id)), ])[1]
+[1] 79349
+> dim(dt_1hosp[(emotion_disturb) & (!(bene_id %in% invalidSEX_id)), ])[1]
+[1] 123948
+> dim(dt_1hosp[(adole_reaction) & (!(bene_id %in% invalidSEX_id)), ])[1]
+[1] 131859
+> dim(dt_1hosp[(disturb_conduct) & (!(bene_id %in% invalidSEX_id)), ])[1]
+[1] 116491
+> 
+> cat("after removing subjects with invalid REC info \n")
+after removing subjects with invalid REC info 
+> dim(dt_1hosp[(depression) & !(bene_id %in% invalidSEX_id) & !(bene_id %in% invalidREC_id), ])[1]
+[1] 177865
+> dim(dt_1hosp[(anxiety) & !(bene_id %in% invalidSEX_id) & !(bene_id %in% invalidREC_id), ])[1]
+[1] 79326
+> dim(dt_1hosp[(emotion_disturb) & !(bene_id %in% invalidSEX_id) & !(bene_id %in% invalidREC_id), ])[1]
+[1] 123929
+> dim(dt_1hosp[(adole_reaction) & !(bene_id %in% invalidSEX_id) & !(bene_id %in% invalidREC_id), ])[1]
+[1] 131799
+> dim(dt_1hosp[(disturb_conduct) & !(bene_id %in% invalidSEX_id) & !(bene_id %in% invalidREC_id), ])[1]
+[1] 116459
+> 
+> cat("after removing subjects with invalid ZIP info \n")
+after removing subjects with invalid ZIP info 
+> dim(dt_1hosp[(depression) & !(bene_id %in% invalidSEX_id) & !(bene_id %in% invalidREC_id) & !(bene_id %in% invalidZIP_id), ])[1]
+[1] 177382
+> dim(dt_1hosp[(anxiety) & !(bene_id %in% invalidSEX_id) & !(bene_id %in% invalidREC_id) & !(bene_id %in% invalidZIP_id), ])[1]
+[1] 79051
+> dim(dt_1hosp[(emotion_disturb) & !(bene_id %in% invalidSEX_id) & !(bene_id %in% invalidREC_id) & !(bene_id %in% invalidZIP_id), ])[1]
+[1] 123530
+> dim(dt_1hosp[(adole_reaction) & !(bene_id %in% invalidSEX_id) & !(bene_id %in% invalidREC_id) & !(bene_id %in% invalidZIP_id), ])[1]
+[1] 131322
+> dim(dt_1hosp[(disturb_conduct) & !(bene_id %in% invalidSEX_id) & !(bene_id %in% invalidREC_id) & !(bene_id %in% invalidZIP_id), ])[1]
+[1] 116014
+> 
+> dt_output <- dt_1hosp[(!(bene_id %in% invalidSEX_id) & !(bene_id %in% invalidREC_id) & !(bene_id %in% invalidZIP_id)), ]
+> 
+> write_fst(dt_output, file.path(wkdir, "data", "first_hospitalization.fst"))
+> write_fst(dt_output[,.(bene_id, admission_date, zip)], file.path(wkdir, "data","first_hospitalization_only_date_zip.fst"))
+> 
+> # ## subject selection ----
+> # ## need to drop rec==0 in the end
+> # dt_variable <- dt[!(rec_0)]
+> # ## need to drop sex input >1
+> # dt_variable <- dt_variable[(sex=="F")|(sex=="M"),]
+> # # > dim(dt_variable)
+> # # [1] 1505822      33
+> # ## need to drop invalid zipcode input
+> 
+> proc.time()
+   user  system elapsed 
+ 24.715   0.931  14.012 

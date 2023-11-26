@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -p fasse
-#SBATCH -c 8
+#SBATCH -c 24
 #SBATCH --mem 5G
 #SBATCH -t 0-1:00
 #SBATCH -o myRjob_%j.out
