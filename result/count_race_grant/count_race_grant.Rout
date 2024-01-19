@@ -1,0 +1,120 @@
+> ## summarize population number for grant application
+> 
+> rm(list=ls())
+> gc()
+         used (Mb) gc trigger (Mb) max used (Mb)
+Ncells 283111 15.2     664168 35.5   450926 24.1
+Vcells 486861  3.8    8388608 64.0  1814805 13.9
+> require(data.table); require(fst)
+Loading required package: data.table
+Loading required package: fst
+> setDTthreads(threads = 0)
+> wkdir <- "/n/dominici_nsaph_l3/Lab/projects/temperature-children_depression-casexover"
+> dt_dir <- "/n/dominici_nsaph_l3/Lab/projects/medicaid_children_icd/data/individual_records"
+> 
+> dt <- read_fst(file.path(wkdir, "data", "data_to_analyze_fixedtemp.fst"), as.data.table = T)
+> colnames(dt)
+ [1] "bene_id"           "date"              "zip"              
+ [4] "max_temp"          "min_humid"         "depression"       
+ [7] "anxiety"           "emotion_disturb"   "adole_reaction"   
+[10] "disturb_conduct"   "depressionDT"      "anxietyDT"        
+[13] "emotion_disturbDT" "adole_reactionDT"  "disturb_conductDT"
+> length(dt[,bene_id]); length(unique(dt[,bene_id]))
+[1] 1925288
+[1] 481322
+> ID <- unique(dt[,bene_id])
+> 
+> dt_original <- read_fst(file.path(wkdir, "data", "first_hospitalization.fst"), as.data.table = T)
+> 
+> pop <- dt_original[bene_id %in% ID, ]
+> ## 5: HISPANIC (CHANGED TO "HISPANIC OR LATINO - NO RACE INFORMATION AVAILABLE" BEGINNING 10/98)
+> ## 7: HISPANIC OR LATINO AND ONE OR MORE RACES (NEW CODE BEGINNING 10/98)
+> dim(pop[(rec_5)|(rec_7),])[1]; dim(pop[!((rec_5)|(rec_7)),])[1]
+[1] 82532
+[1] 398790
+> dim(pop[(rec_5)|(rec_7),])[1] + dim(pop[!((rec_5)|(rec_7)),])[1] == dim(pop)[1]
+[1] TRUE
+> table(pop[(rec_5)|(rec_7),][,sex])
+
+    F   F,M F,M,U   F,U     M   M,U     U 
+45766     0     0     0 36766     0     0 
+> 
+> ## 3: AMERICAN INDIAN OR ALASKAN NATIVE
+> table(pop[(rec_5)|(rec_7),][(rec_3),][,sex]) # hispanic
+
+    F   F,M F,M,U   F,U     M   M,U     U 
+  742     0     0     0   551     0     0 
+> table(pop[!((rec_5)|(rec_7)),][(rec_3),][,sex]) # non-hispanic
+
+    F   F,M F,M,U   F,U     M   M,U     U 
+ 7166     0     0     0  5995     0     0 
+> dim(pop[(rec_3),])[1]
+[1] 14454
+> 
+> ## 4	ASIAN OR PACIFIC ISLANDER (CHANGED TO "ASIAN" BEGINNING 10/98)
+> table(pop[(rec_5)|(rec_7),][(rec_4),][,sex]) # hispanic
+
+    F   F,M F,M,U   F,U     M   M,U     U 
+  418     0     0     0   312     0     0 
+> table(pop[!((rec_5)|(rec_7)),][(rec_4),][,sex]) # non-hispanic
+
+    F   F,M F,M,U   F,U     M   M,U     U 
+ 2640     0     0     0  2069     0     0 
+> dim(pop[(rec_4),])[1]
+[1] 5439
+> 
+> ## 6	NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDER (NEW CODE BEGINNING 10/98)
+> table(pop[(rec_5)|(rec_7),][(rec_6),][,sex]) # hispanic
+
+    F   F,M F,M,U   F,U     M   M,U     U 
+  783     0     0     0   867     0     0 
+> table(pop[!((rec_5)|(rec_7)),][(rec_6),][,sex]) # non-hispanic
+
+    F   F,M F,M,U   F,U     M   M,U     U 
+  775     0     0     0   618     0     0 
+> dim(pop[(rec_6),])[1]
+[1] 3043
+> 
+> ## 2	BLACK, NOT OF HISPANIC ORIGIN (CHANGED TO "BLACK OR AFRICAN AMERICAN" BEGINNING 10/98)
+> table(pop[(rec_5)|(rec_7),][(rec_2),][,sex]) # hispanic
+
+    F   F,M F,M,U   F,U     M   M,U     U 
+ 3097     0     0     0  2367     0     0 
+> table(pop[!((rec_5)|(rec_7)),][(rec_2),][,sex]) # non-hispanic
+
+    F   F,M F,M,U   F,U     M   M,U     U 
+58622     0     0     0 59029     0     0 
+> dim(pop[(rec_2),])[1]
+[1] 123115
+> 
+> ## 1	WHITE, NOT OF HISPANIC ORIGIN (CHANGED TO "WHITE" BEGINNING 10/98)
+> table(pop[(rec_5)|(rec_7),][(rec_1),][,sex]) # hispanic
+
+    F   F,M F,M,U   F,U     M   M,U     U 
+11664     0     0     0  8974     0     0 
+> table(pop[!((rec_5)|(rec_7)),][(rec_1),][,sex]) # non-hispanic
+
+     F    F,M  F,M,U    F,U      M    M,U      U 
+134655      0      0      0 136529      0      0 
+> dim(pop[(rec_1),])[1]
+[1] 291822
+> 
+> ## 8	MORE THAN ONE RACE (HISPANIC OR LATINO NOT INDICATED) (NEW CODE BEGINNING 10/98)
+> table(pop[(rec_5)|(rec_7),][(rec_8),][,sex]) # hispanic
+
+    F   F,M F,M,U   F,U     M   M,U     U 
+  252     0     0     0   155     0     0 
+> table(pop[!((rec_5)|(rec_7)),][(rec_8),][,sex]) # non-hispanic
+
+    F   F,M F,M,U   F,U     M   M,U     U 
+ 2766     0     0     0  2444     0     0 
+> dim(pop[(rec_8),])[1]
+[1] 5617
+> 
+> ## additional check
+> dim(pop[!((rec_1)|(rec_2)|(rec_3)|(rec_4)|(rec_6)|(rec_8)),])[1]
+[1] 64127
+> 
+> proc.time()
+   user  system elapsed 
+  8.376   0.592   6.771 
