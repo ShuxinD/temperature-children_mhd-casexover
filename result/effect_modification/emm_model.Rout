@@ -1,0 +1,1485 @@
+> ## EMM models
+> 
+> rm(list=ls())
+> gc()
+         used (Mb) gc trigger (Mb) max used (Mb)
+Ncells 283111 15.2     664168 35.5   450926 24.1
+Vcells 486861  3.8    8388608 64.0  1814805 13.9
+> require(data.table); require(fst)
+Loading required package: data.table
+Loading required package: fst
+> require(survival); require(weathermetrics)
+Loading required package: survival
+Loading required package: weathermetrics
+> setDTthreads(threads = 0)
+> wkdir <- "/n/dominici_nsaph_l3/Lab/projects/temperature-children_depression-casexover"
+> 
+> modifier <- read_fst(file.path(wkdir, "data", "modifier.fst"), as.data.table = T)
+> modifier[,`:=`(zip = NULL,
++                year = NULL)]
+> dt <- read_fst(file.path(wkdir, "data", "data_to_analyze_fixedtemp.fst"), as.data.table = T)
+> dt <- merge(dt, modifier, by = "bene_id", all.x = T)
+> gc()
+           used  (Mb) gc trigger  (Mb) max used  (Mb)
+Ncells  2086844 111.5    3967341 211.9  3015255 161.1
+Vcells 40992978 312.8   71201595 543.3 69174270 527.8
+> 
+> ### create new var. ----
+> dt[, max_temp_C:=max_temp-273.15]
+> dt[, min_humid_fixed := ifelse(min_humid>100, 100, min_humid)]
+> dt[, heat_index := heat.index(t = max_temp_C, rh = min_humid_fixed, 
++                               temperature.metric = "celsius", output.metric = "celsius")]
+> anyNA(dt)
+[1] TRUE
+> dt[is.na(heat_index),]
+Empty data.table (0 rows and 29 cols): bene_id,date,zip,max_temp,min_humid,depression...
+> summary(dt[,.(max_temp_C, min_humid_fixed, heat_index)])
+   max_temp_C     min_humid_fixed     heat_index   
+ Min.   :-27.93   Min.   :  0.307   Min.   :-28.0  
+ 1st Qu.: 12.49   1st Qu.: 32.986   1st Qu.: 11.0  
+ Median : 21.51   Median : 42.394   Median : 21.0  
+ Mean   : 19.86   Mean   : 42.106   Mean   : 19.4  
+ 3rd Qu.: 28.23   3rd Qu.: 51.413   3rd Qu.: 28.0  
+ Max.   : 47.89   Max.   :100.000   Max.   : 55.0  
+> 
+> median_poverty <- median(dt[, poverty], na.rm = T)
+> dt[, poverty_above_median := poverty > median_poverty]
+> 
+> varList <- c("depression", "anxiety", "emotion_disturb", "adole_reaction", "disturb_conduct")
+> recList <- paste0("rec_", 1:9)
+> for (var in varList) {
++   cat(toupper(var),"\n")
++   mod <- clogit(get(var) ~ heat_index + strata(bene_id), data=dt[get(paste0(var,"DT")),])
++   print(summary(mod))
++   cat("print OR for 5 unit increase in temperature and its 95CI \n")
++   est <- coef(mod)[['heat_index']]; se <- sqrt(vcov(mod)[1,1])
++   print(exp(est*5))
++   print(exp((est-qnorm(.975)*se)*5))
++   print(exp((est+qnorm(.975)*se)*5))
++   for (rec_i in recList) {
++     mod <- clogit(get(var) ~ heat_index + strata(bene_id), data=dt[get(paste0(var,"DT")),][get(rec_i)])
++     print(summary(mod))
++     cat(rec_i," print OR for 5 unit increase in temperature and its 95CI \n")
++     est <- coef(mod)[['heat_index']]; se <- sqrt(vcov(mod)[1,1])
++     print(exp(est*5))
++     print(exp((est-qnorm(.975)*se)*5))
++     print(exp((est+qnorm(.975)*se)*5))
++   }
++   cat("ABOVE MEDIAN POVERTY \n")
++   mod <- clogit(get(var) ~ heat_index + strata(bene_id), data=dt[get(paste0(var,"DT")),][get("poverty_above_median"),])
++   print(summary(mod))
++   cat("print OR for 5 unit increase in temperature and its 95CI \n")
++   est <- coef(mod)[['heat_index']]; se <- sqrt(vcov(mod)[1,1])
++   print(exp(est*5))
++   print(exp((est-qnorm(.975)*se)*5))
++   print(exp((est+qnorm(.975)*se)*5))
++   
++   cat("BELOW MEDIAN POVERTY \n")
++   mod <- clogit(get(var) ~ heat_index + strata(bene_id), data=dt[get(paste0(var,"DT")),][!get("poverty_above_median"),])
++   print(summary(mod))
++   cat("print OR for 5 unit increase in temperature and its 95CI \n")
++   est <- coef(mod)[['heat_index']]; se <- sqrt(vcov(mod)[1,1])
++   print(exp(est*5))
++   print(exp((est-qnorm(.975)*se)*5))
++   print(exp((est+qnorm(.975)*se)*5))
++ }
+DEPRESSION 
+Call:
+coxph(formula = Surv(rep(1, 698844L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 698844, number of events= 174711 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)    
+heat_index 0.0039924 1.0040003 0.0005616 7.108 1.17e-12 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004      0.996     1.003     1.005
+
+Concordance= 0.506  (se = 0.001 )
+Likelihood ratio test= 50.55  on 1 df,   p=1e-12
+Wald test            = 50.53  on 1 df,   p=1e-12
+Score (logrank) test = 50.54  on 1 df,   p=1e-12
+
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.020162
+[1] 1.014563
+[1] 1.025793
+Call:
+coxph(formula = Surv(rep(1, 425008L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 425008, number of events= 106252 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)    
+heat_index 0.0041500 1.0041586 0.0006991 5.936 2.92e-09 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004     0.9959     1.003     1.006
+
+Concordance= 0.507  (se = 0.001 )
+Likelihood ratio test= 35.25  on 1 df,   p=3e-09
+Wald test            = 35.23  on 1 df,   p=3e-09
+Score (logrank) test = 35.24  on 1 df,   p=3e-09
+
+rec_1  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.020967
+[1] 1.013995
+[1] 1.027986
+Call:
+coxph(formula = Surv(rep(1, 155220L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 155220, number of events= 38805 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)   
+heat_index 0.003147  1.003152 0.001197 2.628  0.00858 **
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.003     0.9969     1.001     1.006
+
+Concordance= 0.505  (se = 0.002 )
+Likelihood ratio test= 6.91  on 1 df,   p=0.009
+Wald test            = 6.91  on 1 df,   p=0.009
+Score (logrank) test = 6.91  on 1 df,   p=0.009
+
+rec_2  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.01586
+[1] 1.004009
+[1] 1.02785
+Call:
+coxph(formula = Surv(rep(1, 20524L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 20524, number of events= 5131 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.002143  1.002146 0.003079 0.696    0.486
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.002     0.9979    0.9961     1.008
+
+Concordance= 0.505  (se = 0.006 )
+Likelihood ratio test= 0.48  on 1 df,   p=0.5
+Wald test            = 0.48  on 1 df,   p=0.5
+Score (logrank) test = 0.48  on 1 df,   p=0.5
+
+rec_3  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.010775
+[1] 0.9807347
+[1] 1.041734
+Call:
+coxph(formula = Surv(rep(1, 9300L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 9300, number of events= 2325 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)  
+heat_index 0.010057  1.010107 0.005317 1.891   0.0586 .
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index      1.01       0.99    0.9996     1.021
+
+Concordance= 0.51  (se = 0.009 )
+Likelihood ratio test= 3.58  on 1 df,   p=0.06
+Wald test            = 3.58  on 1 df,   p=0.06
+Score (logrank) test = 3.58  on 1 df,   p=0.06
+
+rec_4  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.051569
+[1] 0.9981777
+[1] 1.107816
+Call:
+coxph(formula = Surv(rep(1, 141972L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 141972, number of events= 35493 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)   
+heat_index 0.004727  1.004738 0.001449 3.261  0.00111 **
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.005     0.9953     1.002     1.008
+
+Concordance= 0.504  (se = 0.002 )
+Likelihood ratio test= 10.64  on 1 df,   p=0.001
+Wald test            = 10.64  on 1 df,   p=0.001
+Score (logrank) test = 10.64  on 1 df,   p=0.001
+
+rec_5  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.023916
+[1] 1.009476
+[1] 1.038562
+Call:
+coxph(formula = Surv(rep(1, 6604L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 6604, number of events= 1651 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.001886  1.001888 0.007420 0.254    0.799
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.002     0.9981    0.9874     1.017
+
+Concordance= 0.496  (se = 0.011 )
+Likelihood ratio test= 0.06  on 1 df,   p=0.8
+Wald test            = 0.06  on 1 df,   p=0.8
+Score (logrank) test = 0.06  on 1 df,   p=0.8
+
+rec_6  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.009474
+[1] 0.9386733
+[1] 1.085616
+Call:
+coxph(formula = Surv(rep(1, 28500L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 28500, number of events= 7125 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)
+heat_index 0.0003056 1.0003057 0.0026975 0.113     0.91
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index         1     0.9997     0.995     1.006
+
+Concordance= 0.498  (se = 0.005 )
+Likelihood ratio test= 0.01  on 1 df,   p=0.9
+Wald test            = 0.01  on 1 df,   p=0.9
+Score (logrank) test = 0.01  on 1 df,   p=0.9
+
+rec_7  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.001529
+[1] 0.9754004
+[1] 1.028358
+Call:
+coxph(formula = Surv(rep(1, 5912L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 5912, number of events= 1478 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.004307  1.004317 0.005419 0.795    0.427
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004     0.9957    0.9937     1.015
+
+Concordance= 0.506  (se = 0.012 )
+Likelihood ratio test= 0.63  on 1 df,   p=0.4
+Wald test            = 0.63  on 1 df,   p=0.4
+Score (logrank) test = 0.63  on 1 df,   p=0.4
+
+rec_8  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.021771
+[1] 0.9689271
+[1] 1.077497
+Call:
+coxph(formula = Surv(rep(1, 85060L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 85060, number of events= 21265 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)   
+heat_index 0.004692  1.004703 0.001703 2.755  0.00588 **
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.005     0.9953     1.001     1.008
+
+Concordance= 0.508  (se = 0.003 )
+Likelihood ratio test= 7.59  on 1 df,   p=0.006
+Wald test            = 7.59  on 1 df,   p=0.006
+Score (logrank) test = 7.59  on 1 df,   p=0.006
+
+rec_9  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.023738
+[1] 1.00679
+[1] 1.040971
+ABOVE MEDIAN POVERTY 
+Call:
+coxph(formula = Surv(rep(1, 314792L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get("poverty_above_median"), 
+    ], method = "exact")
+
+  n= 314792, number of events= 78698 
+
+                coef exp(coef)  se(coef)    z Pr(>|z|)    
+heat_index 0.0047316 1.0047429 0.0008572 5.52 3.39e-08 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.005     0.9953     1.003     1.006
+
+Concordance= 0.507  (se = 0.002 )
+Likelihood ratio test= 30.49  on 1 df,   p=3e-08
+Wald test            = 30.47  on 1 df,   p=3e-08
+Score (logrank) test = 30.47  on 1 df,   p=3e-08
+
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.02394
+[1] 1.015375
+[1] 1.032578
+BELOW MEDIAN POVERTY 
+Call:
+coxph(formula = Surv(rep(1, 315500L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][!get("poverty_above_median"), 
+    ], method = "exact")
+
+  n= 315500, number of events= 78875 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)    
+heat_index 0.0027417 1.0027455 0.0008151 3.364 0.000769 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.003     0.9973     1.001     1.004
+
+Concordance= 0.505  (se = 0.002 )
+Likelihood ratio test= 11.31  on 1 df,   p=8e-04
+Wald test            = 11.31  on 1 df,   p=8e-04
+Score (logrank) test = 11.31  on 1 df,   p=8e-04
+
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.013803
+[1] 1.005737
+[1] 1.021934
+ANXIETY 
+Call:
+coxph(formula = Surv(rep(1, 312212L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 312212, number of events= 78053 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)    
+heat_index 0.0040869 1.0040952 0.0008261 4.947 7.52e-07 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004     0.9959     1.002     1.006
+
+Concordance= 0.505  (se = 0.002 )
+Likelihood ratio test= 24.48  on 1 df,   p=7e-07
+Wald test            = 24.48  on 1 df,   p=8e-07
+Score (logrank) test = 24.48  on 1 df,   p=8e-07
+
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.020644
+[1] 1.012415
+[1] 1.02894
+Call:
+coxph(formula = Surv(rep(1, 206028L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 206028, number of events= 51507 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)    
+heat_index 0.005046  1.005059 0.001002 5.034 4.81e-07 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.005      0.995     1.003     1.007
+
+Concordance= 0.507  (se = 0.002 )
+Likelihood ratio test= 25.35  on 1 df,   p=5e-07
+Wald test            = 25.34  on 1 df,   p=5e-07
+Score (logrank) test = 25.35  on 1 df,   p=5e-07
+
+rec_1  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.025551
+[1] 1.015526
+[1] 1.035675
+Call:
+coxph(formula = Surv(rep(1, 59588L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 59588, number of events= 14897 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.001394  1.001395 0.001894 0.736    0.462
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.001     0.9986    0.9977     1.005
+
+Concordance= 0.498  (se = 0.004 )
+Likelihood ratio test= 0.54  on 1 df,   p=0.5
+Wald test            = 0.54  on 1 df,   p=0.5
+Score (logrank) test = 0.54  on 1 df,   p=0.5
+
+rec_2  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.006993
+[1] 0.9884792
+[1] 1.025853
+Call:
+coxph(formula = Surv(rep(1, 10328L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 10328, number of events= 2582 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)  
+heat_index 0.007299  1.007325 0.004254 1.716   0.0862 .
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.007     0.9927     0.999     1.016
+
+Concordance= 0.516  (se = 0.009 )
+Likelihood ratio test= 2.95  on 1 df,   p=0.09
+Wald test            = 2.94  on 1 df,   p=0.09
+Score (logrank) test = 2.95  on 1 df,   p=0.09
+
+rec_3  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.037167
+[1] 0.9948223
+[1] 1.081315
+Call:
+coxph(formula = Surv(rep(1, 3440L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 3440, number of events= 860 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.006111  1.006130 0.008168 0.748    0.454
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.006     0.9939    0.9902     1.022
+
+Concordance= 0.504  (se = 0.015 )
+Likelihood ratio test= 0.56  on 1 df,   p=0.5
+Wald test            = 0.56  on 1 df,   p=0.5
+Score (logrank) test = 0.56  on 1 df,   p=0.5
+
+rec_4  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.031027
+[1] 0.951714
+[1] 1.116949
+Call:
+coxph(formula = Surv(rep(1, 42576L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 42576, number of events= 10644 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.002105  1.002107 0.002488 0.846    0.397
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.002     0.9979    0.9972     1.007
+
+Concordance= 0.503  (se = 0.004 )
+Likelihood ratio test= 0.72  on 1 df,   p=0.4
+Wald test            = 0.72  on 1 df,   p=0.4
+Score (logrank) test = 0.72  on 1 df,   p=0.4
+
+rec_5  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.010582
+[1] 0.9862406
+[1] 1.035524
+Call:
+coxph(formula = Surv(rep(1, 1016L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 1016, number of events= 254 
+
+              coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.02425   1.02455  0.01742 1.392    0.164
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.025      0.976    0.9902      1.06
+
+Concordance= 0.521  (se = 0.028 )
+Likelihood ratio test= 1.95  on 1 df,   p=0.2
+Wald test            = 1.94  on 1 df,   p=0.2
+Score (logrank) test = 1.95  on 1 df,   p=0.2
+
+rec_6  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.128919
+[1] 0.9517251
+[1] 1.339104
+Call:
+coxph(formula = Surv(rep(1, 14396L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 14396, number of events= 3599 
+
+                coef exp(coef)  se(coef)      z Pr(>|z|)
+heat_index -0.002855  0.997149  0.003850 -0.742    0.458
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index    0.9971      1.003    0.9897     1.005
+
+Concordance= 0.501  (se = 0.008 )
+Likelihood ratio test= 0.55  on 1 df,   p=0.5
+Wald test            = 0.55  on 1 df,   p=0.5
+Score (logrank) test = 0.55  on 1 df,   p=0.5
+
+rec_7  print OR for 5 unit increase in temperature and its 95CI 
+[1] 0.9858244
+[1] 0.9493191
+[1] 1.023733
+Call:
+coxph(formula = Surv(rep(1, 4004L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 4004, number of events= 1001 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.002107  1.002109 0.006768 0.311    0.756
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.002     0.9979    0.9889     1.015
+
+Concordance= 0.499  (se = 0.015 )
+Likelihood ratio test= 0.1  on 1 df,   p=0.8
+Wald test            = 0.1  on 1 df,   p=0.8
+Score (logrank) test = 0.1  on 1 df,   p=0.8
+
+rec_8  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.010592
+[1] 0.9457385
+[1] 1.079892
+Call:
+coxph(formula = Surv(rep(1, 49156L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 49156, number of events= 12289 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)  
+heat_index 0.003823  1.003831 0.002154 1.775   0.0759 .
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004     0.9962    0.9996     1.008
+
+Concordance= 0.504  (se = 0.004 )
+Likelihood ratio test= 3.15  on 1 df,   p=0.08
+Wald test            = 3.15  on 1 df,   p=0.08
+Score (logrank) test = 3.15  on 1 df,   p=0.08
+
+rec_9  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.019301
+[1] 0.9980071
+[1] 1.041049
+ABOVE MEDIAN POVERTY 
+Call:
+coxph(formula = Surv(rep(1, 135584L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get("poverty_above_median"), 
+    ], method = "exact")
+
+  n= 135584, number of events= 33896 
+
+               coef exp(coef) se(coef)    z Pr(>|z|)   
+heat_index 0.004052  1.004060 0.001274 3.18  0.00147 **
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004      0.996     1.002     1.007
+
+Concordance= 0.505  (se = 0.002 )
+Likelihood ratio test= 10.12  on 1 df,   p=0.001
+Wald test            = 10.11  on 1 df,   p=0.001
+Score (logrank) test = 10.11  on 1 df,   p=0.001
+
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.020465
+[1] 1.007803
+[1] 1.033286
+BELOW MEDIAN POVERTY 
+Call:
+coxph(formula = Surv(rep(1, 155924L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][!get("poverty_above_median"), 
+    ], method = "exact")
+
+  n= 155924, number of events= 38981 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)    
+heat_index 0.003875  1.003883 0.001156 3.352 0.000804 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004     0.9961     1.002     1.006
+
+Concordance= 0.506  (se = 0.002 )
+Likelihood ratio test= 11.23  on 1 df,   p=8e-04
+Wald test            = 11.23  on 1 df,   p=8e-04
+Score (logrank) test = 11.23  on 1 df,   p=8e-04
+
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.019565
+[1] 1.008078
+[1] 1.031184
+EMOTION_DISTURB 
+Call:
+coxph(formula = Surv(rep(1, 488404L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 488404, number of events= 122101 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)    
+heat_index 0.0032841 1.0032895 0.0006456 5.087 3.65e-07 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.003     0.9967     1.002     1.005
+
+Concordance= 0.505  (se = 0.001 )
+Likelihood ratio test= 25.88  on 1 df,   p=4e-07
+Wald test            = 25.87  on 1 df,   p=4e-07
+Score (logrank) test = 25.87  on 1 df,   p=4e-07
+
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.016556
+[1] 1.010144
+[1] 1.023008
+Call:
+coxph(formula = Surv(rep(1, 308464L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 308464, number of events= 77116 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)    
+heat_index 0.004200  1.004208 0.000804 5.223 1.76e-07 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004     0.9958     1.003     1.006
+
+Concordance= 0.507  (se = 0.002 )
+Likelihood ratio test= 27.29  on 1 df,   p=2e-07
+Wald test            = 27.28  on 1 df,   p=2e-07
+Score (logrank) test = 27.29  on 1 df,   p=2e-07
+
+rec_1  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.02122
+[1] 1.013205
+[1] 1.029298
+Call:
+coxph(formula = Surv(rep(1, 141152L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 141152, number of events= 35288 
+
+                coef exp(coef)  se(coef)   z Pr(>|z|)
+heat_index 0.0006048 1.0006050 0.0012094 0.5    0.617
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.001     0.9994    0.9982     1.003
+
+Concordance= 0.498  (se = 0.002 )
+Likelihood ratio test= 0.25  on 1 df,   p=0.6
+Wald test            = 0.25  on 1 df,   p=0.6
+Score (logrank) test = 0.25  on 1 df,   p=0.6
+
+rec_2  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.003029
+[1] 0.9912107
+[1] 1.014987
+Call:
+coxph(formula = Surv(rep(1, 15144L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 15144, number of events= 3786 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.005060  1.005073 0.003425 1.477     0.14
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.005      0.995    0.9983     1.012
+
+Concordance= 0.508  (se = 0.007 )
+Likelihood ratio test= 2.18  on 1 df,   p=0.1
+Wald test            = 2.18  on 1 df,   p=0.1
+Score (logrank) test = 2.18  on 1 df,   p=0.1
+
+rec_3  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.025625
+[1] 0.9917678
+[1] 1.060638
+Call:
+coxph(formula = Surv(rep(1, 3080L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 3080, number of events= 770 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.002103  1.002105 0.008304 0.253      0.8
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.002     0.9979    0.9859     1.019
+
+Concordance= 0.504  (se = 0.016 )
+Likelihood ratio test= 0.06  on 1 df,   p=0.8
+Wald test            = 0.06  on 1 df,   p=0.8
+Score (logrank) test = 0.06  on 1 df,   p=0.8
+
+rec_4  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.010568
+[1] 0.9315883
+[1] 1.096244
+Call:
+coxph(formula = Surv(rep(1, 44940L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 44940, number of events= 11235 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.002421  1.002424 0.002384 1.015     0.31
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.002     0.9976    0.9978     1.007
+
+Concordance= 0.505  (se = 0.004 )
+Likelihood ratio test= 1.03  on 1 df,   p=0.3
+Wald test            = 1.03  on 1 df,   p=0.3
+Score (logrank) test = 1.03  on 1 df,   p=0.3
+
+rec_5  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.012178
+[1] 0.9888011
+[1] 1.036108
+Call:
+coxph(formula = Surv(rep(1, 1172L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 1172, number of events= 293 
+
+              coef exp(coef) se(coef)     z Pr(>|z|)  
+heat_index 0.02796   1.02836  0.01549 1.806    0.071 .
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.028     0.9724    0.9976      1.06
+
+Concordance= 0.524  (se = 0.027 )
+Likelihood ratio test= 3.28  on 1 df,   p=0.07
+Wald test            = 3.26  on 1 df,   p=0.07
+Score (logrank) test = 3.28  on 1 df,   p=0.07
+
+rec_6  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.150063
+[1] 0.988115
+[1] 1.338554
+Call:
+coxph(formula = Surv(rep(1, 16964L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 16964, number of events= 4241 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.004395  1.004405 0.003441 1.277    0.202
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004     0.9956    0.9977     1.011
+
+Concordance= 0.511  (se = 0.007 )
+Likelihood ratio test= 1.63  on 1 df,   p=0.2
+Wald test            = 1.63  on 1 df,   p=0.2
+Score (logrank) test = 1.63  on 1 df,   p=0.2
+
+rec_7  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.022221
+[1] 0.988321
+[1] 1.057283
+Call:
+coxph(formula = Surv(rep(1, 7196L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 7196, number of events= 1799 
+
+                 coef  exp(coef)   se(coef)     z Pr(>|z|)
+heat_index -4.966e-05  1.000e+00  4.983e-03 -0.01    0.992
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index         1          1    0.9902      1.01
+
+Concordance= 0.497  (se = 0.011 )
+Likelihood ratio test= 0  on 1 df,   p=1
+Wald test            = 0  on 1 df,   p=1
+Score (logrank) test = 0  on 1 df,   p=1
+
+rec_8  print OR for 5 unit increase in temperature and its 95CI 
+[1] 0.9997517
+[1] 0.9521022
+[1] 1.049786
+Call:
+coxph(formula = Surv(rep(1, 76284L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 76284, number of events= 19071 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)  
+heat_index 0.003899  1.003906 0.001709 2.282   0.0225 *
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004     0.9961     1.001     1.007
+
+Concordance= 0.505  (se = 0.003 )
+Likelihood ratio test= 5.21  on 1 df,   p=0.02
+Wald test            = 5.21  on 1 df,   p=0.02
+Score (logrank) test = 5.21  on 1 df,   p=0.02
+
+rec_9  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.019685
+[1] 1.002754
+[1] 1.036901
+ABOVE MEDIAN POVERTY 
+Call:
+coxph(formula = Surv(rep(1, 215600L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get("poverty_above_median"), 
+    ], method = "exact")
+
+  n= 215600, number of events= 53900 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)  
+heat_index 0.0017688 1.0017704 0.0009869 1.792   0.0731 .
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.002     0.9982    0.9998     1.004
+
+Concordance= 0.503  (se = 0.002 )
+Likelihood ratio test= 3.21  on 1 df,   p=0.07
+Wald test            = 3.21  on 1 df,   p=0.07
+Score (logrank) test = 3.21  on 1 df,   p=0.07
+
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.008883
+[1] 0.999173
+[1] 1.018688
+BELOW MEDIAN POVERTY 
+Call:
+coxph(formula = Surv(rep(1, 229312L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][!get("poverty_above_median"), 
+    ], method = "exact")
+
+  n= 229312, number of events= 57328 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)    
+heat_index 0.0041204 1.0041289 0.0009268 4.446 8.76e-06 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004     0.9959     1.002     1.006
+
+Concordance= 0.506  (se = 0.002 )
+Likelihood ratio test= 19.77  on 1 df,   p=9e-06
+Wald test            = 19.76  on 1 df,   p=9e-06
+Score (logrank) test = 19.77  on 1 df,   p=9e-06
+
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.020816
+[1] 1.011586
+[1] 1.03013
+ADOLE_REACTION 
+Call:
+coxph(formula = Surv(rep(1, 517236L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 517236, number of events= 129309 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)    
+heat_index 0.004266  1.004275 0.000643 6.635 3.25e-11 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004     0.9957     1.003     1.006
+
+Concordance= 0.505  (se = 0.001 )
+Likelihood ratio test= 44.04  on 1 df,   p=3e-11
+Wald test            = 44.02  on 1 df,   p=3e-11
+Score (logrank) test = 44.03  on 1 df,   p=3e-11
+
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.021561
+[1] 1.015144
+[1] 1.028018
+Call:
+coxph(formula = Surv(rep(1, 322332L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 322332, number of events= 80583 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)    
+heat_index 0.0049352 1.0049474 0.0008045 6.134 8.55e-10 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.005     0.9951     1.003     1.007
+
+Concordance= 0.506  (se = 0.002 )
+Likelihood ratio test= 37.65  on 1 df,   p=8e-10
+Wald test            = 37.63  on 1 df,   p=9e-10
+Score (logrank) test = 37.64  on 1 df,   p=9e-10
+
+rec_1  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.024983
+[1] 1.016934
+[1] 1.033096
+Call:
+coxph(formula = Surv(rep(1, 132288L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 132288, number of events= 33072 
+
+               coef exp(coef) se(coef)    z Pr(>|z|)  
+heat_index 0.002329  1.002332 0.001279 1.82   0.0687 .
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.002     0.9977    0.9998     1.005
+
+Concordance= 0.503  (se = 0.003 )
+Likelihood ratio test= 3.31  on 1 df,   p=0.07
+Wald test            = 3.31  on 1 df,   p=0.07
+Score (logrank) test = 3.31  on 1 df,   p=0.07
+
+rec_2  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.011714
+[1] 0.999108
+[1] 1.024479
+Call:
+coxph(formula = Surv(rep(1, 19600L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 19600, number of events= 4900 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)  
+heat_index 0.007021  1.007046 0.003067 2.289   0.0221 *
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.007      0.993     1.001     1.013
+
+Concordance= 0.513  (se = 0.007 )
+Likelihood ratio test= 5.25  on 1 df,   p=0.02
+Wald test            = 5.24  on 1 df,   p=0.02
+Score (logrank) test = 5.24  on 1 df,   p=0.02
+
+rec_3  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.035729
+[1] 1.005063
+[1] 1.067332
+Call:
+coxph(formula = Surv(rep(1, 6248L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 6248, number of events= 1562 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)
+heat_index 0.0007132 1.0007134 0.0061671 0.116    0.908
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.001     0.9993    0.9887     1.013
+
+Concordance= 0.494  (se = 0.012 )
+Likelihood ratio test= 0.01  on 1 df,   p=0.9
+Wald test            = 0.01  on 1 df,   p=0.9
+Score (logrank) test = 0.01  on 1 df,   p=0.9
+
+rec_4  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.003572
+[1] 0.9447165
+[1] 1.066095
+Call:
+coxph(formula = Surv(rep(1, 65176L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 65176, number of events= 16294 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)   
+heat_index 0.005863  1.005880 0.002003 2.927  0.00342 **
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.006     0.9942     1.002      1.01
+
+Concordance= 0.507  (se = 0.004 )
+Likelihood ratio test= 8.57  on 1 df,   p=0.003
+Wald test            = 8.57  on 1 df,   p=0.003
+Score (logrank) test = 8.57  on 1 df,   p=0.003
+
+rec_5  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.029746
+[1] 1.009733
+[1] 1.050156
+Call:
+coxph(formula = Surv(rep(1, 2424L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 2424, number of events= 606 
+
+              coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.01621   1.01634  0.01134 1.429    0.153
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.016     0.9839     0.994     1.039
+
+Concordance= 0.52  (se = 0.019 )
+Likelihood ratio test= 2.05  on 1 df,   p=0.2
+Wald test            = 2.04  on 1 df,   p=0.2
+Score (logrank) test = 2.05  on 1 df,   p=0.2
+
+rec_6  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.084405
+[1] 0.9703537
+[1] 1.211861
+Call:
+coxph(formula = Surv(rep(1, 25348L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 25348, number of events= 6337 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.001364  1.001365 0.002884 0.473    0.636
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.001     0.9986    0.9957     1.007
+
+Concordance= 0.502  (se = 0.006 )
+Likelihood ratio test= 0.22  on 1 df,   p=0.6
+Wald test            = 0.22  on 1 df,   p=0.6
+Score (logrank) test = 0.22  on 1 df,   p=0.6
+
+rec_7  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.006845
+[1] 0.9787882
+[1] 1.035705
+Call:
+coxph(formula = Surv(rep(1, 7244L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 7244, number of events= 1811 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.008325  1.008360 0.005062 1.645      0.1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.008     0.9917    0.9984     1.018
+
+Concordance= 0.51  (se = 0.011 )
+Likelihood ratio test= 2.71  on 1 df,   p=0.1
+Wald test            = 2.7  on 1 df,   p=0.1
+Score (logrank) test = 2.71  on 1 df,   p=0.1
+
+rec_8  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.042504
+[1] 0.9920499
+[1] 1.095525
+Call:
+coxph(formula = Surv(rep(1, 75636L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 75636, number of events= 18909 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)  
+heat_index 0.003765  1.003772 0.001749 2.152   0.0314 *
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004     0.9962         1     1.007
+
+Concordance= 0.506  (se = 0.003 )
+Likelihood ratio test= 4.63  on 1 df,   p=0.03
+Wald test            = 4.63  on 1 df,   p=0.03
+Score (logrank) test = 4.63  on 1 df,   p=0.03
+
+rec_9  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.019001
+[1] 1.001681
+[1] 1.036621
+ABOVE MEDIAN POVERTY 
+Call:
+coxph(formula = Surv(rep(1, 229760L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get("poverty_above_median"), 
+    ], method = "exact")
+
+  n= 229760, number of events= 57440 
+
+                coef exp(coef)  se(coef)    z Pr(>|z|)    
+heat_index 0.0047899 1.0048014 0.0009756 4.91 9.12e-07 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.005     0.9952     1.003     1.007
+
+Concordance= 0.505  (se = 0.002 )
+Likelihood ratio test= 24.12  on 1 df,   p=9e-07
+Wald test            = 24.11  on 1 df,   p=9e-07
+Score (logrank) test = 24.11  on 1 df,   p=9e-07
+
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.024238
+[1] 1.014493
+[1] 1.034078
+BELOW MEDIAN POVERTY 
+Call:
+coxph(formula = Surv(rep(1, 242836L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][!get("poverty_above_median"), 
+    ], method = "exact")
+
+  n= 242836, number of events= 60709 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)    
+heat_index 0.0030853 1.0030901 0.0009273 3.327 0.000877 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.003     0.9969     1.001     1.005
+
+Concordance= 0.504  (se = 0.002 )
+Likelihood ratio test= 11.07  on 1 df,   p=9e-04
+Wald test            = 11.07  on 1 df,   p=9e-04
+Score (logrank) test = 11.07  on 1 df,   p=9e-04
+
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.015546
+[1] 1.006359
+[1] 1.024817
+DISTURB_CONDUCT 
+Call:
+coxph(formula = Surv(rep(1, 458224L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ], method = "exact")
+
+  n= 458224, number of events= 114556 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)    
+heat_index 0.0027130 1.0027167 0.0006856 3.957 7.58e-05 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.003     0.9973     1.001     1.004
+
+Concordance= 0.503  (se = 0.001 )
+Likelihood ratio test= 15.66  on 1 df,   p=8e-05
+Wald test            = 15.66  on 1 df,   p=8e-05
+Score (logrank) test = 15.66  on 1 df,   p=8e-05
+
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.013658
+[1] 1.00687
+[1] 1.020491
+Call:
+coxph(formula = Surv(rep(1, 264848L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 264848, number of events= 66212 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)    
+heat_index 0.0031646 1.0031696 0.0008862 3.571 0.000356 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.003     0.9968     1.001     1.005
+
+Concordance= 0.504  (se = 0.002 )
+Likelihood ratio test= 12.75  on 1 df,   p=4e-04
+Wald test            = 12.75  on 1 df,   p=4e-04
+Score (logrank) test = 12.75  on 1 df,   p=4e-04
+
+rec_1  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.015949
+[1] 1.007164
+[1] 1.02481
+Call:
+coxph(formula = Surv(rep(1, 138520L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 138520, number of events= 34630 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.001523  1.001524 0.001250 1.218    0.223
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.002     0.9985    0.9991     1.004
+
+Concordance= 0.501  (se = 0.002 )
+Likelihood ratio test= 1.48  on 1 df,   p=0.2
+Wald test            = 1.48  on 1 df,   p=0.2
+Score (logrank) test = 1.48  on 1 df,   p=0.2
+
+rec_2  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.007645
+[1] 0.995374
+[1] 1.020068
+Call:
+coxph(formula = Surv(rep(1, 12892L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 12892, number of events= 3223 
+
+                coef exp(coef)  se(coef)     z Pr(>|z|)
+heat_index 0.0009149 1.0009154 0.0037962 0.241     0.81
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.001     0.9991    0.9935     1.008
+
+Concordance= 0.498  (se = 0.008 )
+Likelihood ratio test= 0.06  on 1 df,   p=0.8
+Wald test            = 0.06  on 1 df,   p=0.8
+Score (logrank) test = 0.06  on 1 df,   p=0.8
+
+rec_3  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.004585
+[1] 0.9678993
+[1] 1.042661
+Call:
+coxph(formula = Surv(rep(1, 3932L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 3932, number of events= 983 
+
+                coef exp(coef)  se(coef)      z Pr(>|z|)
+heat_index -0.003714  0.996293  0.007606 -0.488    0.625
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index    0.9963      1.004    0.9816     1.011
+
+Concordance= 0.511  (se = 0.015 )
+Likelihood ratio test= 0.24  on 1 df,   p=0.6
+Wald test            = 0.24  on 1 df,   p=0.6
+Score (logrank) test = 0.24  on 1 df,   p=0.6
+
+rec_4  print OR for 5 unit increase in temperature and its 95CI 
+[1] 0.9816013
+[1] 0.9110998
+[1] 1.057558
+Call:
+coxph(formula = Surv(rep(1, 62400L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 62400, number of events= 15600 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)  
+heat_index 0.003544  1.003550 0.002114 1.676   0.0937 .
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.004     0.9965    0.9994     1.008
+
+Concordance= 0.504  (se = 0.004 )
+Likelihood ratio test= 2.81  on 1 df,   p=0.09
+Wald test            = 2.81  on 1 df,   p=0.09
+Score (logrank) test = 2.81  on 1 df,   p=0.09
+
+rec_5  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.017878
+[1] 0.9970059
+[1] 1.039186
+Call:
+coxph(formula = Surv(rep(1, 2536L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 2536, number of events= 634 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index -0.00256   0.99744  0.01111 -0.23    0.818
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index    0.9974      1.003     0.976     1.019
+
+Concordance= 0.506  (se = 0.018 )
+Likelihood ratio test= 0.05  on 1 df,   p=0.8
+Wald test            = 0.05  on 1 df,   p=0.8
+Score (logrank) test = 0.05  on 1 df,   p=0.8
+
+rec_6  print OR for 5 unit increase in temperature and its 95CI 
+[1] 0.9872817
+[1] 0.8854459
+[1] 1.10083
+Call:
+coxph(formula = Surv(rep(1, 19176L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 19176, number of events= 4794 
+
+                 coef  exp(coef)   se(coef)     z Pr(>|z|)
+heat_index -0.0007406  0.9992596  0.0033693 -0.22    0.826
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index    0.9993      1.001    0.9927     1.006
+
+Concordance= 0.497  (se = 0.007 )
+Likelihood ratio test= 0.05  on 1 df,   p=0.8
+Wald test            = 0.05  on 1 df,   p=0.8
+Score (logrank) test = 0.05  on 1 df,   p=0.8
+
+rec_7  print OR for 5 unit increase in temperature and its 95CI 
+[1] 0.9963036
+[1] 0.9639443
+[1] 1.029749
+Call:
+coxph(formula = Surv(rep(1, 5736L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 5736, number of events= 1434 
+
+                coef exp(coef)  se(coef)      z Pr(>|z|)
+heat_index -0.001599  0.998402  0.005817 -0.275    0.783
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index    0.9984      1.002    0.9871      1.01
+
+Concordance= 0.498  (se = 0.012 )
+Likelihood ratio test= 0.08  on 1 df,   p=0.8
+Wald test            = 0.08  on 1 df,   p=0.8
+Score (logrank) test = 0.08  on 1 df,   p=0.8
+
+rec_8  print OR for 5 unit increase in temperature and its 95CI 
+[1] 0.9920376
+[1] 0.9370632
+[1] 1.050237
+Call:
+coxph(formula = Surv(rep(1, 77504L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get(rec_i)], 
+    method = "exact")
+
+  n= 77504, number of events= 19376 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)
+heat_index 0.002037  1.002039 0.001757 1.159    0.246
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.002      0.998    0.9986     1.005
+
+Concordance= 0.503  (se = 0.003 )
+Likelihood ratio test= 1.34  on 1 df,   p=0.2
+Wald test            = 1.34  on 1 df,   p=0.2
+Score (logrank) test = 1.34  on 1 df,   p=0.2
+
+rec_9  print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.010238
+[1] 0.9929878
+[1] 1.027787
+ABOVE MEDIAN POVERTY 
+Call:
+coxph(formula = Surv(rep(1, 219012L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][get("poverty_above_median"), 
+    ], method = "exact")
+
+  n= 219012, number of events= 54753 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)  
+heat_index 0.001845  1.001846 0.001006 1.834   0.0666 .
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.002     0.9982    0.9999     1.004
+
+Concordance= 0.502  (se = 0.002 )
+Likelihood ratio test= 3.36  on 1 df,   p=0.07
+Wald test            = 3.36  on 1 df,   p=0.07
+Score (logrank) test = 3.36  on 1 df,   p=0.07
+
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.009266
+[1] 0.9993674
+[1] 1.019263
+BELOW MEDIAN POVERTY 
+Call:
+coxph(formula = Surv(rep(1, 195356L), get(var)) ~ heat_index + 
+    strata(bene_id), data = dt[get(paste0(var, "DT")), ][!get("poverty_above_median"), 
+    ], method = "exact")
+
+  n= 195356, number of events= 48839 
+
+               coef exp(coef) se(coef)     z Pr(>|z|)   
+heat_index 0.003067  1.003072 0.001031 2.975  0.00293 **
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+           exp(coef) exp(-coef) lower .95 upper .95
+heat_index     1.003     0.9969     1.001     1.005
+
+Concordance= 0.504  (se = 0.002 )
+Likelihood ratio test= 8.85  on 1 df,   p=0.003
+Wald test            = 8.85  on 1 df,   p=0.003
+Score (logrank) test = 8.85  on 1 df,   p=0.003
+
+print OR for 5 unit increase in temperature and its 95CI 
+[1] 1.015453
+[1] 1.005246
+[1] 1.025764
+> 
+> proc.time()
+   user  system elapsed 
+ 95.889   0.987  72.353 
