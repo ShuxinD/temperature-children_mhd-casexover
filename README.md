@@ -6,6 +6,8 @@ This analysis serves as a preliminary analysis for a grant application.
 
 Medicaid enrollees up to 18 years old with major despressive disorders hospitalizations
 
+Subgroup analysis restricts to 12-18 years old.
+
 #### outcome
 
 depression; anxiety; emotional disturbance; adolescence reaction; disturbance of conduct
