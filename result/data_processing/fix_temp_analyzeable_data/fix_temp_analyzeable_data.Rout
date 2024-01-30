@@ -1,0 +1,101 @@
+> ## fix the glitch in temperature data
+> 
+> rm(list=ls()); gc()
+         used (Mb) gc trigger (Mb) max used (Mb)
+Ncells 283111 15.2     664168 35.5   450926 24.1
+Vcells 486861  3.8    8388608 64.0  1814805 13.9
+> require(data.table); setDTthreads(threads = 0)
+Loading required package: data.table
+> require(survival); require(fst)
+Loading required package: survival
+Loading required package: fst
+> require(splines); require(weathermetrics)
+Loading required package: splines
+Loading required package: weathermetrics
+> wkdir <- "/n/dominici_nsaph_l3/Lab/projects/temperature-children_depression-casexover"
+> dt <- read_fst(file.path(wkdir,"data","data_to_analyze.fst"), as.data.table = T)
+> 
+> ### create exposure variables ----
+> #'  temperature Kelvin to Celcius: -273.15 
+> #'  heat index: `weathermetrics::heat.index`
+> #'  set min. humidity above 100 (slightly) to 100
+> summary(dt[,.(max_temp, min_humid)])
+    max_temp        min_humid      
+ Min.   : 16.25   Min.   :  0.307  
+ 1st Qu.:285.63   1st Qu.: 32.987  
+ Median :294.66   Median : 42.396  
+ Mean   :292.98   Mean   : 42.106  
+ 3rd Qu.:301.38   3rd Qu.: 51.412  
+ Max.   :321.04   Max.   :100.000  
+> hist(dt[,max_temp])
+> 
+> ### extreme temp ----
+> probZIP <- c(33070, 33036, 4631, 33033, 4652, 32625)
+> dt[zip %in% probZIP,.(date, zip, max_temp)][, max_temp_C:=max_temp-273.15][]
+           date   zip max_temp max_temp_C
+  1: 2009-06-03 33033 234.1287  -39.02128
+  2: 2009-06-10 33033 236.2043  -36.94568
+  3: 2009-06-17 33033 237.0100  -36.14001
+  4: 2009-06-24 33033 237.7694  -35.38056
+  5: 2010-05-06 33033 304.9301   31.78010
+ ---                                     
+660: 2010-04-28 33033 300.4415   27.29155
+661: 2002-04-02 33033 234.4610  -38.68896
+662: 2002-04-09 33033 233.4084  -39.74155
+663: 2002-04-16 33033 234.1561  -38.99394
+664: 2002-04-23 33033 236.3745  -36.77548
+> hist(dt[!(zip %in% probZIP), max_temp])
+> summary(dt[!(zip %in% probZIP), max_temp])
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  245.2   285.6   294.7   293.0   301.4   321.0 
+> dt[!(zip %in% probZIP) & (max_temp<250),.(date, zip, max_temp)] # temperature fixed
+          date   zip max_temp
+ 1: 2009-01-14 56671 248.3651
+ 2: 2009-01-14 58370 249.9907
+ 3: 2004-01-14  5661 249.9695
+ 4: 2006-02-17 58316 249.2804
+ 5: 2009-01-15 58703 249.8539
+ 6: 2004-01-14  5843 249.5379
+ 7: 2004-01-27 58784 249.9619
+ 8: 2004-01-29 58078 248.7397
+ 9: 2004-01-28 58776 245.2233
+10: 2004-01-29 58282 246.6752
+11: 2008-12-14 59912 249.5027
+12: 2007-01-12 58249 248.7346
+13: 2009-01-14 58212 248.8941
+14: 1999-01-08 58329 249.4462
+15: 2010-01-01 58237 248.6677
+> 
+> ## find how many cases were impacted
+> length(unique(dt[(depressionDT), bene_id])) # match data processing
+[1] 174805
+> length(unique(dt[(depressionDT) & !(zip %in% probZIP), bene_id]))
+[1] 174711
+> 
+> length(unique(dt[(anxietyDT), bene_id])) # match data processing
+[1] 78076
+> length(unique(dt[(anxietyDT) & !(zip %in% probZIP), bene_id]))
+[1] 78053
+> 
+> length(unique(dt[(emotion_disturbDT), bene_id])) # match data processing
+[1] 122117
+> length(unique(dt[(emotion_disturbDT) & !(zip %in% probZIP), bene_id]))
+[1] 122101
+> 
+> length(unique(dt[(adole_reactionDT), bene_id])) # match data processing
+[1] 129338
+> length(unique(dt[(adole_reactionDT) & !(zip %in% probZIP), bene_id]))
+[1] 129309
+> 
+> length(unique(dt[(disturb_conductDT), bene_id])) # match data processing
+[1] 114593
+> length(unique(dt[(disturb_conductDT) & !(zip %in% probZIP), bene_id]))
+[1] 114556
+> 
+> ### save updated data ----
+> dt <- dt[!(zip %in% probZIP), ]
+> write_fst(dt, path = file.path(wkdir, "data", "data_to_analyze_fixedtemp.fst"))
+> 
+> proc.time()
+   user  system elapsed 
+  4.278   0.539   6.992 

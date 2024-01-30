@@ -90,8 +90,8 @@ mean(dt_1hosp[, validZIP]) # proportion with valid ZIP codes
 # dt_1hosp <- dt_1hosp[(validZIP),]
 anyDuplicated(dt_1hosp[,c("admission_date","bene_id", "zip")])
 hist(dt_1hosp[,age])
-write_fst(dt_1hosp, file.path(wkdir, "data", "first_hospitalization_original.fst"))
-write_fst(dt_1hosp[,.(bene_id, admission_date, zip)], file.path(wkdir, "data","first_hospitalization_only_date_zip_original.fst"))
+# write_fst(dt_1hosp, file.path(wkdir, "data", "first_hospitalization_original.fst"))
+# write_fst(dt_1hosp[,.(bene_id, admission_date, zip)], file.path(wkdir, "data","first_hospitalization_original_only_date_zip.fst"))
 
 ## removing missingness ----
 cat("original Mediciad cases \n")
@@ -124,14 +124,5 @@ dim(dt_1hosp[(disturb_conduct) & !(bene_id %in% invalidSEX_id) & !(bene_id %in% 
 
 dt_output <- dt_1hosp[(!(bene_id %in% invalidSEX_id) & !(bene_id %in% invalidREC_id) & !(bene_id %in% invalidZIP_id)), ]
 
-write_fst(dt_output, file.path(wkdir, "data", "first_hospitalization.fst"))
-write_fst(dt_output[,.(bene_id, admission_date, zip)], file.path(wkdir, "data","first_hospitalization_only_date_zip.fst"))
-
-# ## subject selection ----
-# ## need to drop rec==0 in the end
-# dt_variable <- dt[!(rec_0)]
-# ## need to drop sex input >1
-# dt_variable <- dt_variable[(sex=="F")|(sex=="M"),]
-# # > dim(dt_variable)
-# # [1] 1505822      33
-# ## need to drop invalid zipcode input
+write_fst(dt_output, file.path(wkdir, "data", "first_hospitalization_case.fst"))
+write_fst(dt_output[,.(bene_id, admission_date, zip)], file.path(wkdir, "data","first_hospitalization_case_only_date_zip.fst"))

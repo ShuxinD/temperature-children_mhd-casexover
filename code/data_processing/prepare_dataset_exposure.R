@@ -11,10 +11,11 @@ wkdir <- "/n/dominici_nsaph_l3/Lab/projects/temperature-children_depression-case
 
 ## prepare the mergeable date ----
 ### case data ----
-case <- read_fst(file.path(wkdir, "data", "first_hospitalization_only_date_zip.fst"), as.data.table = T) 
+case <- read_fst(file.path(wkdir, "data", "first_hospitalization_case_only_date_zip.fst"), as.data.table = T) 
 case[,admission_date:=ymd(admission_date)]
 summary(case[, admission_date])
 case[, case_mday:=mday(admission_date)]
+
 ### control data ---- 
 ## find day of the month and other date with the same day of a month
 ## mday <=7
@@ -39,7 +40,7 @@ control <- melt(temp_control, id.vars = c("bene_id","zip"), measure.vars = patte
 
 rm(temp_control);rm(temp_1);rm(temp_2);rm(temp_3);rm(temp_4)
 gc()
-write_fst(control, file.path(wkdir, "data", "first_hospitalization_only_date_zip_control.fst")) ## save mergeable info for controls
+write_fst(control, file.path(wkdir, "data", "first_hospitalization_control_only_date_zip.fst")) ## save mergeable info for controls
 
 ## merge heat exposure data to control and case----
 case_merge <- NULL
