@@ -12,7 +12,7 @@ colnames(dt)
 length(dt[,bene_id]); length(unique(dt[,bene_id]))
 ID <- unique(dt[,bene_id])
 
-dt_original <- read_fst(file.path(wkdir, "data", "first_hospitalization.fst"), as.data.table = T)
+dt_original <- read_fst(file.path(wkdir, "data", "first_hospitalization_case.fst"), as.data.table = T)
 
 pop <- dt_original[bene_id %in% ID, ]
 ## 5: HISPANIC (CHANGED TO "HISPANIC OR LATINO - NO RACE INFORMATION AVAILABLE" BEGINNING 10/98)
