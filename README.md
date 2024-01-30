@@ -20,7 +20,7 @@ heat index calculated from above
 
 #### study design
 
-case-crossover
+case-crossover with time-stratified matching strategy
 
 #### statistical method
 
