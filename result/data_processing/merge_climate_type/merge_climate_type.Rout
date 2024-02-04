@@ -1,0 +1,37 @@
+> rm(list=ls()); gc()
+         used (Mb) gc trigger (Mb) max used (Mb)
+Ncells 283111 15.2     664168 35.5   450926 24.1
+Vcells 486861  3.8    8388608 64.0  1814805 13.9
+> require(data.table); setDTthreads(threads = 0)
+Loading required package: data.table
+> require(fst)
+Loading required package: fst
+> wkdir <- "/n/dominici_nsaph_l3/Lab/projects/temperature-children_depression-casexover"
+> climate_dir <- "/n/dominici_nsaph_l3/Lab/exposure/raster2polygon_climate_types/climate_types_zip_zcta520.csv"
+> 
+> ## load data ----
+> dt <- read_fst(file.path(wkdir,"data","data_to_analyze.fst"), as.data.table = T)
+> climate <- fread(climate_dir, select = 1:4)
+> 
+> ## zipcode validation ----
+> official_zip <- fread(file.path(wkdir, "data", "zip_code_database.csv"))
+> climate[, validZIP := zip %in% official_zip[,zip]] # ZIP codes in the official database is valid
+> climate[, zcta:=NULL]
+> summary(climate[,validZIP])
+   Mode    TRUE 
+logical   40539 
+> summary(dt[,zip] %in% climate[,zip]) ## any ZIP codes not in climate?
+   Mode   FALSE    TRUE 
+logical    7240 1918712 
+> ## why this is happening?
+> ## let's create a temp data
+> 
+> ## temp merge ----
+> merged <- merge(dt, climate, by = "zip")
+> (dim(merged)[1]-dim(dt)[1])/4 ## drop # of cases
+[1] -1810
+> write_fst(merged, file.path(wkdir, "data", "temp", "analysis_climate.fst"))
+> 
+> proc.time()
+   user  system elapsed 
+  2.993   0.298   3.653 
