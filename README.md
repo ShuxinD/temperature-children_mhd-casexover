@@ -1,7 +1,5 @@
 ## Temperature and major depressive disorders in children with Medicaid data
 
-This analysis serves as a preliminary analysis for a grant application.
-
 #### study population
 
 Medicaid enrollees up to 18 years old with major despressive disorders hospitalizations
