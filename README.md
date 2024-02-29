@@ -26,12 +26,14 @@ conditional logistic
 
 ### coding process
 
-#### prepare the dataset
+#### data preparation
 
 Medicaid dataset is pre-processed as described in https://github.com/NSAPH-Data-Processing/medicaid-children-first-hospitalzation
 
 The public database is used to check ZIP code validity: https://www.unitedstateszipcodes.org/zip-code-database/
 
 Race/ethnicity coding: https://resdac.org/cms-data/variables/raceethnicity-msis
+
+Climate types: major types
 
 
