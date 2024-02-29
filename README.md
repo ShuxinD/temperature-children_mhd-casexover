@@ -10,6 +10,8 @@ Subgroup analysis restricts to 12-18 years old.
 
 depression; anxiety; emotional disturbance; adolescence reaction; disturbance of conduct
 
+from all available diagnositic codes
+
 #### exposure
 
 daily maximum temperature; daily average relative humidity (source: gridMET)
