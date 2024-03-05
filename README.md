@@ -2,7 +2,7 @@
 
 #### study population
 
-Medicaid enrollees up to 18 years old with major despressive disorders hospitalizations
+Medicaid enrollees up to 18 years old with mental health disorders hospitalizations from 2000 to 2012.
 
 Subgroup analysis restricts to 12-18 years old.
 
