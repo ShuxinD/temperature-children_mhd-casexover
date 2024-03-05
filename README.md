@@ -36,6 +36,8 @@ The public database is used to check ZIP code validity: https://www.unitedstates
 
 Race/ethnicity coding: https://resdac.org/cms-data/variables/raceethnicity-msis
 
+To create the map, we use the 2012 ZIP-code to ZCTA crosswalk file from https://udsmapper.org/zip-code-to-zcta-crosswalk/. The analysis was still conducted on ZIP-code level.
+
 Climate types: major types
 
 
