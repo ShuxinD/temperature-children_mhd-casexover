@@ -1,5 +1,7 @@
 ## Temperature and major depressive disorders in children with Medicaid data
 
+FASSE location: `/n/dominici_nsaph_l3/Lab/projects/temperature-children_mhd-casexover`
+
 #### study population
 
 Medicaid enrollees up to 18 years old with mental health disorders hospitalizations from 1999 to 2012.
